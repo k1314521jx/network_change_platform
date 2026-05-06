@@ -247,7 +247,7 @@ INPUT_SCHEMA_DOC = """
 ## 一、顶层结构
 | 字段名 | 类型 | 说明 |
 |--------|------|------|
-| `name` | Str | 方案名称 |
+| `name` | Str | 方案名称描述 |
 | `demand_info` | Object | 原始需求信息，包含本次变更涉及的设备列表与实施步骤概述 |
 | `config` | Object | 各设备的预期配置信息，用于参考核对 |
 | `step_info` | Array | 具体操作步骤列表，按顺序执行 |
@@ -271,7 +271,7 @@ INPUT_SCHEMA_DOC = """
 ### 4.1 步骤字段
 | 字段名 | 类型 | 说明 |
 |--------|------|------|
-| `step_indx` | Integer | 步骤序号，从 1 开始，决定执行顺序 |
+| `step_index` | Integer | 步骤序号，从 1 开始，决定执行顺序 |
 | `step_name` | String | 步骤名称，描述该步骤的操作目标 |
 | `device` | Array<String> | 本步骤的目标设备列表，需对每台设备依次执行本步骤的全部命令 |
 | `command` | Object | 本步骤的命令集合，分为三个执行阶段 |
@@ -285,7 +285,7 @@ INPUT_SCHEMA_DOC = """
 ### 4.3 `CommandItem` — 命令项结构
 | 字段名 | 类型 | 可为空 | 说明 |
 |--------|------|--------|------|
-| `command` | String | 否 | 实际执行的命令内容 |
-| `rollback_command` | String | 是 | 回退命令；当该命令执行失败或需要回滚时使用，为空表示该命令无需回退 |
-| `desc` | String | 是 | 命令说明，描述该命令的用途；为空则以命令本身语义为准 |
+| `command` | Array<CommandItem> | 否 | 实际执行的命令内容 |
+| `rollback_command` | Array<CommandItem> | 是 | 回退命令；当该命令执行失败或需要回滚时使用，为空表示该命令无需回退 |
+| `desc` | String | 是 | 步骤命令说明，描述该命令组的用途；为空则以命令本身语义为准 |
 """
