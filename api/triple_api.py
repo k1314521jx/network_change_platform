@@ -1,12 +1,7 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify
 from models import db, RuleTask, TripleTask, TripleReview
 
 triple_bp = Blueprint("triple", __name__)
-
-
-@triple_bp.route("/module-b")
-def index():
-    return render_template("module_b.html")
 
 
 @triple_bp.route("/api/triple/convert", methods=["POST"])

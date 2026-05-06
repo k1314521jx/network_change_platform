@@ -1,16 +1,11 @@
 import os
 import uuid
 from datetime import datetime
-from flask import Blueprint, request, jsonify, render_template, current_app
+from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from models import db, RuleTask
 
 rule_bp = Blueprint("rule", __name__)
-
-
-@rule_bp.route("/")
-def index():
-    return render_template("module_a.html")
 
 
 @rule_bp.route("/api/rule/upload", methods=["POST"])

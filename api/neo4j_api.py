@@ -1,13 +1,8 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify
 from models import db, TripleReview, Neo4jImportLog
 from services.neo4j_service import import_triples_to_neo4j, test_neo4j_connection
 
 neo4j_bp = Blueprint("neo4j", __name__)
-
-
-@neo4j_bp.route("/module-d")
-def index():
-    return render_template("module_d.html")
 
 
 @neo4j_bp.route("/api/neo4j/import", methods=["POST"])

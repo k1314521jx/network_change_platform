@@ -1,12 +1,7 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify
 from models import db, TripleTask, TripleReview, now_cn
 
 review_bp = Blueprint("review", __name__)
-
-
-@review_bp.route("/module-c")
-def index():
-    return render_template("module_c.html")
 
 
 @review_bp.route("/api/review/list", methods=["GET"])

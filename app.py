@@ -1,12 +1,16 @@
 import os
-from flask import Flask, render_template
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from config import SQLALCHEMY_DATABASE_URI, FLASK_HOST, FLASK_PORT, FLASK_DEBUG, UPLOAD_FOLDER, MAX_CONTENT_LENGTH
 from models import db
 
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        static_folder="frontend/dist",
+        static_url_path="",
+    )
     app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = "network-change-platform-secret"
@@ -29,6 +33,14 @@ def create_app():
     app.register_blueprint(triple_bp)
     app.register_blueprint(review_bp)
     app.register_blueprint(neo4j_bp)
+
+    # SPA catch-all: serve Vue's index.html for any non-API route
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_spa(path):
+        if path and os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+        return send_from_directory(app.static_folder, "index.html")
 
     # Create tables
     with app.app_context():
