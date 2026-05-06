@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}模块C: 三元组审核{% endblock %}
+{% block nav_c %}active{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header p-0">
+                <ul class="nav nav-tabs card-header-tabs" id="reviewTabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#tab-pending" onclick="switchReviewTab('pending')">
+                            <i class="bi bi-list-check"></i> 待审核
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tab-approved" onclick="switchReviewTab('approved')">
+                            <i class="bi bi-check-circle"></i> 已通过
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tab-rejected" onclick="switchReviewTab('rejected')">
+                            <i class="bi bi-x-circle"></i> 已驳回
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body p-0">
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="tab-pending">
+                        <div class="list-group list-group-flush" id="pendingReviewList" style="max-height:600px;overflow-y:auto;">
+                            <div class="empty-state"><i class="bi bi-inbox"></i><p>加载中...</p></div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="tab-approved">
+                        <div class="list-group list-group-flush" id="approvedReviewList" style="max-height:600px;overflow-y:auto;">
+                            <div class="empty-state"><i class="bi bi-inbox"></i><p>加载中...</p></div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="tab-rejected">
+                        <div class="list-group list-group-flush" id="rejectedReviewList" style="max-height:600px;overflow-y:auto;">
+                            <div class="empty-state"><i class="bi bi-inbox"></i><p>加载中...</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-pencil-square"></i> 三元组编辑审核</span>
+                <div>
+                    <button class="btn btn-sm btn-outline-success me-2" onclick="submitReview('approved')">
+                        <i class="bi bi-check-lg"></i> 审核通过
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="submitReview('rejected')">
+                        <i class="bi bi-x-lg"></i> 驳回
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="reviewEditor" class="empty-state">
+                    <i class="bi bi-arrow-left-circle"></i>
+                    <p>请从左侧列表选择待审核数据</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 审核人模态框 -->
+<div class="modal fade" id="reviewerModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认审核</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">审核人</label>
+                    <input type="text" class="form-control" id="reviewerName" placeholder="请输入审核人姓名">
+                </div>
+                <p id="reviewActionText" class="text-muted"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmReviewBtn">确认提交</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/module_c.js') }}"></script>
+{% endblock %}

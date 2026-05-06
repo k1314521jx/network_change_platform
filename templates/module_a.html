@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}模块A: 历史变更方案规则化{% endblock %}
+{% block nav_a %}active{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-cloud-upload"></i> 上传Excel文件</div>
+            <div class="card-body">
+                <div class="upload-area" id="uploadArea">
+                    <i class="bi bi-file-earmark-excel" style="font-size: 48px; color: #28a745;"></i>
+                    <p class="mt-2 mb-1 fw-bold">点击或拖拽上传Excel文件</p>
+                    <p class="text-muted small">支持 .xlsx / .xls 格式</p>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;">
+                </div>
+                <div class="progress mt-3" id="uploadProgress" style="display:none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-task"></i> 规则化任务列表</span>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="input-group input-group-sm" style="width:220px;">
+                        <input type="text" class="form-control" id="searchFilename" placeholder="按文件名搜索..." onkeydown="if(event.key==='Enter') searchTasks()">
+                        <button class="btn btn-outline-secondary" onclick="searchTasks()"><i class="bi bi-search"></i></button>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="loadTasks()">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" id="taskListContainer">
+                <div class="empty-state"><i class="bi bi-inbox"></i><p>加载中...</p></div>
+            </div>
+            <div class="card-footer bg-white" id="taskPagination"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 详情模态框 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">任务详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2"><strong>文件名：</strong><span id="detailFilename"></span></div>
+                <div class="mb-2"><strong>状态：</strong><span id="detailStatus"></span></div>
+                <div class="mb-2"><strong>创建时间：</strong><span id="detailTime"></span></div>
+                <hr>
+                <h6>抽取后的JSON数据：</h6>
+                <pre class="json-preview" id="detailJson"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/module_a.js') }}"></script>
+{% endblock %}

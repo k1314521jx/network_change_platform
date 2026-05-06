@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}模块D: 三元组入库{% endblock %}
+{% block nav_d %}active{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-database"></i> Neo4j 入库操作</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Neo4j 连接状态</label>
+                    <div id="neo4jStatus">
+                        <span class="spinner-border spinner-border-sm"></span> 检测中...
+                    </div>
+                </div>
+                <hr>
+                <p class="text-muted small">从下方审核通过列表中选择数据，点击入库按钮写入Neo4j图数据库。</p>
+                <button class="btn btn-primary w-100" id="importBtn" onclick="triggerImport()" disabled>
+                    <i class="bi bi-cloud-upload"></i> 批量入库
+                </button>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header"><i class="bi bi-check-circle"></i> 审核通过列表</div>
+            <div class="card-body p-0">
+                <div id="approvedReviewList" style="max-height:400px;overflow-y:auto;">
+                    <div class="empty-state"><i class="bi bi-inbox"></i><p>加载中...</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history"></i> 入库日志</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadImportLogs()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+            <div class="card-body" id="importLogContainer">
+                <div class="empty-state"><i class="bi bi-inbox"></i><p>加载中...</p></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/module_d.js') }}"></script>
+{% endblock %}
