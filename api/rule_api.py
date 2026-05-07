@@ -33,7 +33,7 @@ def upload_excel():
     db.session.commit()
 
     from tasks.rule_tasks import process_excel
-    process_excel.delay(task.id, filepath)
+    process_excel.delay(task.id, filepath, original_filename)
 
     return jsonify({
         "code": 0,

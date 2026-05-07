@@ -1,10 +1,23 @@
 import json
 import logging
+import time
 from datetime import datetime
-from openai import OpenAI
+from httpx import ConnectError, ReadTimeout
+from openai import OpenAI, APIError, APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError
 from config import MODELS, ACTIVE_MODEL
 
 logger = logging.getLogger("llm_service")
+
+LLM_TIMEOUT = 600  # 秒
+
+EXCEPTION_MAP = {
+    APITimeoutError: "请求超时: LLM API 在 {timeout}s 内未响应, 模型={model}, base_url={base_url}",
+    APIConnectionError: "连接失败: 无法连接到 LLM 服务, base_url={base_url}, 原因={detail}",
+    AuthenticationError: "认证失败: API Key 无效或已过期, 模型={model}, base_url={base_url}",
+    RateLimitError: "限流: LLM API 请求频率超限, 模型={model}",
+    ConnectError: "连接被拒: LLM 服务不可达, base_url={base_url}",
+    ReadTimeout: "读取超时: LLM 响应超时({timeout}s), 模型={model}",
+}
 
 
 def get_active_model_config():
@@ -17,17 +30,19 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None) -> s
         cfg = MODELS[model_name]
     else:
         cfg = get_active_model_config()
-        model_name = ACTIVE_MODEL
 
-    logger.info(f"[LLM] 模型: {cfg['model']} | base_url: {cfg['base_url']}")
-    logger.info(f"[LLM] system_prompt: {len(system_prompt)} 字符")
-    logger.info(f"[LLM] user_message: {len(user_message)} 字符")
+    model_id = cfg["model"]
+    base_url = cfg["base_url"]
 
-    client = OpenAI(api_key=cfg["api_key"], base_url=cfg["base_url"])
+    logger.info(f"[LLM] 请求开始 | 模型: {model_id} | base_url: {base_url}")
+    logger.info(f"[LLM] system_prompt: {len(system_prompt)} 字符 | user_message: {len(user_message)} 字符")
 
+    client = OpenAI(api_key=cfg["api_key"], base_url=base_url, timeout=LLM_TIMEOUT)
+
+    start_time = time.time()
     try:
         response = client.chat.completions.create(
-            model=cfg["model"],
+            model=model_id,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
@@ -36,15 +51,38 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None) -> s
             temperature=0,
         )
     except Exception as e:
-        logger.error(f"[LLM] API 请求失败: {e}")
+        elapsed = round(time.time() - start_time, 2)
+        exc_type = type(e)
+
+        # 按异常类型匹配详细错误信息
+        for known_exc, msg_template in EXCEPTION_MAP.items():
+            if isinstance(e, known_exc):
+                error_msg = msg_template.format(
+                    timeout=LLM_TIMEOUT, model=model_id, base_url=base_url, detail=str(e)
+                )
+                logger.error(f"[LLM] {error_msg} | 耗时: {elapsed}s")
+                break
+        else:
+            # 未知异常，记录完整类型和信息
+            error_msg = f"未知异常: {exc_type.__module__}.{exc_type.__qualname__} | 详情: {e}"
+            logger.error(f"[LLM] {error_msg} | 模型: {model_id} | base_url: {base_url} | 耗时: {elapsed}s")
+
+        # 有响应体时记录（部分 APIError 包含 HTTP 响应信息）
+        if isinstance(e, APIError):
+            status_code = getattr(e, 'status_code', None)
+            body = getattr(e, 'body', None)
+            logger.error(f"[LLM] HTTP状态码: {status_code} | 响应体: {body}")
         raise
+
+    elapsed = round(time.time() - start_time, 2)
 
     finish_reason = response.choices[0].finish_reason
     content = response.choices[0].message.content
     usage = response.usage
 
     logger.info(
-        f"[LLM] finish_reason: {finish_reason} | "
+        f"[LLM] 请求成功 | 模型: {model_id} | 耗时: {elapsed}s | "
+        f"finish_reason: {finish_reason} | "
         f"prompt_tokens: {usage.prompt_tokens if usage else 'N/A'} | "
         f"completion_tokens: {usage.completion_tokens if usage else 'N/A'} | "
         f"响应长度: {len(content) if content else 0}"
