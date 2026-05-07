@@ -37,6 +37,23 @@ class TripleTask(db.Model):
     created_at = db.Column(db.DateTime, default=now_cn)
 
     reviews = db.relationship("TripleReview", backref="triple_task", lazy="dynamic")
+    ai_reviews = db.relationship("AiReview", backref="triple_task", lazy="dynamic")
+
+
+class AiReview(db.Model):
+    __tablename__ = "ai_review"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    triple_task_id = db.Column(db.Integer, db.ForeignKey("triple_task.id"), nullable=False, index=True)
+    model = db.Column(db.String(50), default="deepseek")
+    status = db.Column(db.Enum("pending", "reviewing", "reviewed", "failed"), default="pending", index=True)
+    score = db.Column(db.Integer, nullable=True)
+    dimensions = db.Column(db.JSON, nullable=True)
+    suggestions = db.Column(db.JSON, nullable=True)
+    summary = db.Column(db.Text, nullable=True)
+    error_message = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=now_cn)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
 
 
 class TripleReview(db.Model):

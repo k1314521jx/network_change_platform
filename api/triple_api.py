@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from models import db, RuleTask, TripleTask, TripleReview
 
 triple_bp = Blueprint("triple", __name__)
@@ -121,3 +121,36 @@ def retry_triple_task(task_id):
     convert_task.delay(task.id, task.rule_task_id, model)
 
     return jsonify({"code": 0, "message": "重试已触发"})
+
+
+@triple_bp.route("/api/triple/tasks/<int:task_id>/thinking", methods=["GET"])
+def export_thinking(task_id):
+    """导出 LLM 思考过程为 txt 文件"""
+    task = db.session.get(TripleTask, task_id)
+    if not task:
+        return jsonify({"code": -1, "message": "任务不存在"}), 404
+
+    from services.llm_service import get_thinking_from_redis
+    data = get_thinking_from_redis(task_id)
+    if not data:
+        return jsonify({"code": -1, "message": "数据过期或数据未生成"}), 404
+
+    model = data.get("model", "unknown")
+    timestamp = data.get("timestamp", "")
+    thinking = data.get("thinking", "")
+
+    txt_content = (
+        f"=== LLM 思考过程 ===\n"
+        f"任务ID: {task_id}\n"
+        f"模型: {model}\n"
+        f"生成时间: {timestamp}\n"
+        f"{'=' * 40}\n\n"
+        f"{thinking}"
+    )
+
+    filename = f"thinking_task_{task_id}.txt"
+    return Response(
+        txt_content,
+        mimetype="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

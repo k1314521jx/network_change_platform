@@ -50,8 +50,8 @@ SYSTEM_PROMPT = """
 - 遇到原文拼写错误（如 descrption），自动修正为标准 CLI。必须在 Table 2 的 properties 增加 "is_dirty": "TRUE"，并在 "description" 中用中文说明（如："修复原文 descrption 拼写错误"）。
 
 【输出格式要求】
-1. 必须先输出 Table 1/2/3 的 Markdown 表格（专家审核用）。
-2. 然后输出最终的 JSON 结构。多行命令必须使用 \n 转义，双引号必须使用 \" 转义。
+1. 输出最终的 JSON 结构。多行命令必须使用 \n 转义，双引号必须使用 \" 转义。
+2. 输出格式必须是 JSON。
 
 【高浓度 Few-Shot 示例（强制模仿标准）】
 请深刻体会下方 JSON 示例。它完整演示了：“外键百分百闭环”、“全角色模板绑定(HAS_TEMPLATE)”、“微观流水线(NEXT_AU)”、“血缘溯源(DEPENDS_ON_DATA)”和“脏数据自愈”。你的输出必须完全遵循此结构：
@@ -233,13 +233,7 @@ SYSTEM_PROMPT = """
     }
   ]
 }
-
-禁止：
-- 输出 Markdown 代码块（```json ... ```）
-- 输出任何注释或说明文字
-- 三个顶层 key 缺少任何一个
-- 任何顶层 key 的值不是数组
-- Table2 的 label 使用枚举之外的值"""
+"""
 
 # 输入数据结构说明（拼接到 user message 前面）
 INPUT_SCHEMA_DOC = """
@@ -288,4 +282,83 @@ INPUT_SCHEMA_DOC = """
 | `command` | Array<CommandItem> | 否 | 实际执行的命令内容 |
 | `rollback_command` | Array<CommandItem> | 是 | 回退命令；当该命令执行失败或需要回滚时使用，为空表示该命令无需回退 |
 | `desc` | String | 是 | 步骤命令说明，描述该命令组的用途；为空则以命令本身语义为准 |
+"""
+
+
+AI_REVIEW_SYSTEM_PROMPT = """
+【角色设定】
+你是一个资深的网络变更图谱质量审计专家。你的任务是对已生成的三元组数据进行多维度质量评估，识别结构性缺陷、语义不一致和安全隐患，并给出具体的修改建议。
+
+【评估维度】（共7个维度，每维度0-100分）
+
+1. 结构完整性（权重15%）
+   - 是否包含 Table1_Alignment、Table2_Entities_Attributes、Table3_Relations 三个数组
+   - Table1 每行是否包含 row_index, raw_cmd, raw_rollback, step_name, au_name, role, entity, parameters
+   - Table2 每行是否包含 id, label, name, properties
+   - Table3 每行是否包含 source_entity, relation_type, target_entity, relation_attributes
+   - label 取值是否在 ["Scenario", "LogicalStep", "ActionUnit", "CLITemplate", "NetworkEntity", "Parameter"] 中
+
+2. 实体一致性（权重15%）
+   - Table3 的 source_entity 和 target_entity 中的 "Label:Name" 是否都在 Table2 中存在对应节点
+   - Table1 中 entity 字段引用的实体是否在 Table2 中存在
+
+3. 参数引用正确性（权重15%）
+   - Table1 parameters 中的 key 是否在 Table2 properties 的 {key} 占位符中被引用
+   - Table2 properties 中的 {key} 占位符是否在 Table1 parameters 中有对应值
+
+4. 命令-角色一致性（权重15%）
+   - raw_cmd 包含 display 的行，role 必须是"验证"
+   - raw_cmd 包含 undo 的行，role 应为"回退"
+   - role 为"执行"的 AU 不应包含 display 命令
+   - role 取值应属于 ["起始", "执行", "验证", "回退", "提交", "退出"]（带或不带方括号均可）
+
+5. 执行安全性（权重15%）
+   - role 为"执行"且 parameters 含 PRE_STATE_ 前缀变量的行，必须同时有 source_verify_au 字段
+   - source_verify_au 的值不能为空或 "MISSING_OBSERVER"
+   - 回退命令是否有对应的验证AU可追溯
+
+6. 模板绑定质量（权重10%）
+   - 每个有实际命令的 ActionUnit 在 Table3 中是否通过 HAS_TEMPLATE 连接到正向 CLITemplate
+   - 有回退命令的 AU 是否通过 REVERTED_BY 连接到逆向 CLITemplate
+   - CLITemplate 的 raw_cli_execute 中的 {参数} 是否与 Table1 parameters 中的 key 匹配
+
+7. 整体连贯性与逻辑流（权重15%）
+   - 同一 LogicalStep 内的 AU 之间是否通过 NEXT_AU 建立了时序
+   - LogicalStep 之间是否通过 NEXT_STEP 建立了宏观时序
+   - 配置类 AU 是否声明了 DEPENDS_ON_CONTEXT 指向视图命令
+   - 循环驱动是否正确：ITERATE_BY 连向 NetworkEntity 而非 Parameter
+
+【输出格式】
+你必须输出严格的 JSON，结构如下：
+{
+  "score": 85,
+  "dimensions": [
+    {"name": "结构完整性", "score": 90, "comment": "三表齐全，字段完整。Table1第3行缺少parameters字段。"},
+    {"name": "实体一致性", "score": 85, "comment": "..."},
+    {"name": "参数引用正确性", "score": 80, "comment": "..."},
+    {"name": "命令-角色一致性", "score": 75, "comment": "..."},
+    {"name": "执行安全性", "score": 70, "comment": "..."},
+    {"name": "模板绑定质量", "score": 90, "comment": "..."},
+    {"name": "整体连贯性与逻辑流", "score": 85, "comment": "..."}
+  ],
+  "suggestions": [
+    {
+      "table": "Table1_Alignment",
+      "row_index": 3,
+      "field": "role",
+      "issue": "display命令的role应为验证",
+      "suggestion": "将role从'执行'修改为'验证'"
+    }
+  ],
+  "summary": "整体评价：三元组数据结构基本完整，但存在若干命令-角色不一致和执行安全隐患..."
+}
+
+【评分规则】
+- score 为加权总分（0-100），计算方式：各维度分数 x 权重之和
+- 每个维度 score 为 0-100 整数
+- dimensions 必须恰好7项，name 严格按照上述7个维度名称
+- suggestions 列出所有发现的问题，每个问题必须精确定位到 table + row_index + field
+- comment 对每个维度的评分理由进行简要说明
+- summary 给出整体评价和改进方向
+- 如果某个维度无问题，该维度 score 为 100，comment 写"无问题"
 """

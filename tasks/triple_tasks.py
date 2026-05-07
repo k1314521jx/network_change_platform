@@ -55,7 +55,7 @@ def convert_to_triple(self, triple_task_id: int, rule_task_id: int, model: str =
                 input_data, ensure_ascii=False, indent=2
             )
 
-            response_text = call_llm(SYSTEM_PROMPT, user_message, model_name=model)
+            response_text = call_llm(SYSTEM_PROMPT, user_message, model_name=model, task_id=triple_task_id)
             triple_data = parse_and_validate(response_text)
 
             # 规则校验

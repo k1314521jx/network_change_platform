@@ -1,19 +1,41 @@
 from flask import Blueprint, request, jsonify
-from models import db, TripleTask, TripleReview, now_cn
+from models import db, TripleTask, TripleReview, AiReview, now_cn
 
 review_bp = Blueprint("review", __name__)
 
 
+def _get_ai_review_context(triple_task_id: int) -> dict | None:
+    """获取AI审核上下文信息"""
+    ai_review = AiReview.query.filter_by(
+        triple_task_id=triple_task_id, status="reviewed"
+    ).order_by(AiReview.created_at.desc()).first()
+    if not ai_review:
+        return None
+    return {
+        "id": ai_review.id,
+        "score": ai_review.score,
+        "summary": ai_review.summary,
+        "suggestions": ai_review.suggestions,
+        "dimensions": ai_review.dimensions,
+    }
+
+
 @review_bp.route("/api/review/list", methods=["GET"])
 def list_pending_reviews():
-    """获取待审核列表：triple_task中status=success且尚未审核通过的"""
+    """获取待人工审核列表：已通过AI审核且尚未人工审核通过的"""
     # 查询已审核通过的 triple_task_id
     approved_ids = db.session.query(TripleReview.triple_task_id).filter(
         TripleReview.review_status == "approved"
     ).subquery()
 
+    # 查询已通过AI审核的 triple_task_id
+    ai_reviewed_ids = db.session.query(AiReview.triple_task_id).filter(
+        AiReview.status == "reviewed"
+    ).subquery()
+
     query = TripleTask.query.filter(
         TripleTask.status == "success",
+        TripleTask.id.in_(ai_reviewed_ids),
         ~TripleTask.id.in_(approved_ids)
     ).order_by(TripleTask.created_at.desc())
 
@@ -61,6 +83,7 @@ def get_review_data(triple_task_id):
             "table3": data.get("Table3_Relations", []),
             "review_id": existing_review.id if existing_review else None,
             "review_status": existing_review.review_status if existing_review else None,
+            "ai_review": _get_ai_review_context(triple_task_id),
         }
     })
 

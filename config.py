@@ -4,9 +4,13 @@ DB_CONFIG = {
     "password": "QPAL624119", "database": "act"
 }
 
-# Redis (Celery Broker 用 db0, Result Backend 用 db1，避免高并发时互相影响)
+# Redis (Celery Broker 用 db0, Result Backend 用 db1, LLM思考过程用 db3)
 REDIS_CONFIG = {"host": "127.0.0.1", "port": 6379, "db": 0, "password": ""}
 REDIS_BACKEND_CONFIG = {"host": "127.0.0.1", "port": 6379, "db": 1, "password": ""}
+REDIS_THINKING_CONFIG = {"host": "127.0.0.1", "port": 6379, "db": 3, "password": ""}
+
+# LLM 思考过程缓存过期时间（秒）
+LLM_THINKING_TTL = 86400  # 24小时
 
 # Neo4j
 NEO4J_CONFIG = {

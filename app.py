@@ -28,11 +28,13 @@ def create_app():
     from api.triple_api import triple_bp
     from api.review_api import review_bp
     from api.neo4j_api import neo4j_bp
+    from api.ai_review_api import ai_review_bp
 
     app.register_blueprint(rule_bp)
     app.register_blueprint(triple_bp)
     app.register_blueprint(review_bp)
     app.register_blueprint(neo4j_bp)
+    app.register_blueprint(ai_review_bp)
 
     # SPA catch-all: serve Vue's index.html for any non-API route
     @app.route("/", defaults={"path": ""})
