@@ -21,11 +21,11 @@ def convert_to_triple():
     if existing:
         return jsonify({"code": -1, "message": "该规则数据已有转换任务进行中"}), 400
 
+    model = data.get("model", "deepseek")
+
     triple_task = TripleTask(rule_task_id=rule_task_id, status="pending", model=model)
     db.session.add(triple_task)
     db.session.commit()
-
-    model = data.get("model", "deepseek")
 
     from tasks.triple_tasks import convert_to_triple as convert_task
     convert_task.delay(triple_task.id, rule_task_id, model)
@@ -92,6 +92,7 @@ def get_triple_task(task_id):
             "status": task.status,
             "triple_json": task.triple_json,
             "error_message": task.error_message,
+            "validation_result": task.validation_result,
             "created_at": task.created_at.isoformat() if task.created_at else None,
         }
     })
@@ -99,12 +100,12 @@ def get_triple_task(task_id):
 
 @triple_bp.route("/api/triple/tasks/<int:task_id>/retry", methods=["POST"])
 def retry_triple_task(task_id):
-    """重试失败的三元组转换任务"""
+    """重试失败或不合格的三元组转换任务"""
     task = db.session.get(TripleTask, task_id)
     if not task:
         return jsonify({"code": -1, "message": "任务不存在"}), 404
-    if task.status != "failed":
-        return jsonify({"code": -1, "message": "只能重试失败的任务"}), 400
+    if task.status not in ("failed", "unqualified"):
+        return jsonify({"code": -1, "message": "只能重试失败或不合格的任务"}), 400
 
     rule_task = db.session.get(RuleTask, task.rule_task_id)
     if not rule_task or rule_task.status != "success":
@@ -112,6 +113,7 @@ def retry_triple_task(task_id):
 
     task.status = "pending"
     task.error_message = None
+    task.validation_result = None
     model = task.model or "deepseek"
     db.session.commit()
 
