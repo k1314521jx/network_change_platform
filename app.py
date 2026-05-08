@@ -29,12 +29,14 @@ def create_app():
     from api.review_api import review_bp
     from api.neo4j_api import neo4j_bp
     from api.ai_review_api import ai_review_bp
+    from api.prompt_api import prompt_bp
 
     app.register_blueprint(rule_bp)
     app.register_blueprint(triple_bp)
     app.register_blueprint(review_bp)
     app.register_blueprint(neo4j_bp)
     app.register_blueprint(ai_review_bp)
+    app.register_blueprint(prompt_bp)
 
     # SPA catch-all: serve Vue's index.html for any non-API route
     @app.route("/", defaults={"path": ""})
@@ -44,9 +46,11 @@ def create_app():
             return send_from_directory(app.static_folder, path)
         return send_from_directory(app.static_folder, "index.html")
 
-    # Create tables
+    # Create tables + seed builtin prompts
     with app.app_context():
         db.create_all()
+        from services.prompt_service import seed_builtin_prompts
+        seed_builtin_prompts()
 
     return app
 

@@ -35,7 +35,7 @@ def _get_flask_app():
 
 
 @celery.task(bind=True, name="triple_tasks.convert_to_triple")
-def convert_to_triple(self, triple_task_id: int, rule_task_id: int, model: str = "deepseek"):
+def convert_to_triple(self, triple_task_id: int, rule_task_id: int, model: str = "deepseek", prompt_id: int = None):
     """模块B: 调用LLM将规则化JSON转换为三元组"""
     flask_app = _get_flask_app()
     with flask_app.app_context():
@@ -50,12 +50,20 @@ def convert_to_triple(self, triple_task_id: int, rule_task_id: int, model: str =
             if not input_data:
                 raise ValueError("规则任务没有可用的extracted_json数据")
 
+            # 加载提示词：优先使用数据库配置，否则使用硬编码默认
+            system_prompt = SYSTEM_PROMPT
+            if prompt_id:
+                from services.prompt_service import get_prompt_content_by_id
+                db_content = get_prompt_content_by_id(prompt_id)
+                if db_content:
+                    system_prompt = db_content
+
             # 构建 user message：输入数据结构说明 + 实际数据（匹配已验证的方案）
             user_message = INPUT_SCHEMA_DOC + "\n" + json.dumps(
                 input_data, ensure_ascii=False, indent=2
             )
 
-            response_text = call_llm(SYSTEM_PROMPT, user_message, model_name=model, task_id=triple_task_id)
+            response_text = call_llm(system_prompt, user_message, model_name=model, task_id=triple_task_id)
             triple_data = parse_and_validate(response_text)
 
             # 规则校验

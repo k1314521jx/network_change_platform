@@ -24,6 +24,7 @@ celery.conf.update(
     enable_utc=True,
     task_track_started=True,
     worker_hijack_root_logger=False,
+    worker_prefetch_multiplier=1,
 )
 
 # 配置日志：同时输出到控制台和文件

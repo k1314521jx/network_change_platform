@@ -8,7 +8,7 @@ from config import MODELS, ACTIVE_MODEL, REDIS_THINKING_CONFIG, LLM_THINKING_TTL
 
 logger = logging.getLogger("llm_service")
 
-LLM_TIMEOUT = 600  # 秒
+LLM_TIMEOUT = 3600  # 秒
 
 EXCEPTION_MAP = {
     APITimeoutError: "请求超时: LLM API 在 {timeout}s 内未响应, 模型={model}, base_url={base_url}",
@@ -204,8 +204,6 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
         logger.error(f"[LLM] 返回空内容! finish_reason={finish_reason}")
         raise ValueError(f"LLM 返回空内容 (finish_reason={finish_reason})")
 
-    _save_response_log(cfg["model"], content, finish_reason, usage)
-
     return content
 
 
@@ -229,20 +227,6 @@ def _handle_exception(e: Exception, start_time: float, model_id: str, base_url: 
         status_code = getattr(e, 'status_code', None)
         body = getattr(e, 'body', None)
         logger.error(f"[LLM] HTTP状态码: {status_code} | 响应体: {body}")
-
-
-def _save_response_log(model: str, content: str, finish_reason: str, usage) -> None:
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = f"llm_response_{timestamp}.txt"
-    try:
-        with open(log_path, "w", encoding="utf-8") as f:
-            f.write(f"模型: {model}\n时间: {timestamp}\nfinish_reason: {finish_reason}\n")
-            if usage:
-                f.write(f"tokens: prompt={usage.prompt_tokens}, completion={usage.completion_tokens}\n")
-            f.write(f"\n=== 原始响应 ===\n{content}")
-        logger.info(f"[LLM] 原始响应已保存: {log_path}")
-    except Exception:
-        pass
 
 
 def parse_and_validate(raw_response: str) -> dict:

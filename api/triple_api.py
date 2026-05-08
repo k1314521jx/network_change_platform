@@ -22,13 +22,14 @@ def convert_to_triple():
         return jsonify({"code": -1, "message": "该规则数据已有转换任务进行中"}), 400
 
     model = data.get("model", "deepseek")
+    prompt_id = data.get("prompt_id")
 
     triple_task = TripleTask(rule_task_id=rule_task_id, status="pending", model=model)
     db.session.add(triple_task)
     db.session.commit()
 
     from tasks.triple_tasks import convert_to_triple as convert_task
-    convert_task.delay(triple_task.id, rule_task_id, model)
+    convert_task.delay(triple_task.id, rule_task_id, model, prompt_id=prompt_id)
 
     return jsonify({
         "code": 0,
