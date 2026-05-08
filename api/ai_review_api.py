@@ -148,6 +148,28 @@ def export_ai_review_thinking(review_id):
     )
 
 
+@ai_review_bp.route("/api/ai-review/<int:review_id>/start", methods=["POST"])
+def start_ai_review(review_id):
+    """触发已有的pending审核记录执行审核"""
+    ai_review = db.session.get(AiReview, review_id)
+    if not ai_review:
+        return jsonify({"code": -1, "message": "审核记录不存在"}), 404
+    if ai_review.status != "pending":
+        return jsonify({"code": -1, "message": f"当前状态为 {ai_review.status}，无法启动审核"}), 400
+
+    data = request.get_json() or {}
+    model = data.get("model") or ai_review.model or "deepseek"
+    prompt_id = data.get("prompt_id")
+
+    ai_review.model = model
+    db.session.commit()
+
+    from tasks.ai_review_tasks import run_ai_review
+    run_ai_review.delay(ai_review.id, ai_review.triple_task_id, model, prompt_id=prompt_id)
+
+    return jsonify({"code": 0, "message": "AI审核已触发"})
+
+
 @ai_review_bp.route("/api/ai-review/<int:review_id>/retry", methods=["POST"])
 def retry_ai_review(review_id):
     """重试失败的AI审核"""

@@ -67,7 +67,7 @@
             <div class="card-actions">
               <el-button link type="primary" size="small" @click="openRuleDetail(item)">详情</el-button>
               <el-button
-                v-if="item.status !== 'validating'"
+                v-if="item.status !== 'validating' && item.status !== 'passed'"
                 link type="success" size="small"
                 @click="handleValidate(item)"
               >验证</el-button>
@@ -126,7 +126,7 @@
                 @click="handleAiRetry(item)"
               >重试</el-button>
               <el-button
-                v-if="item.status === 'pending' || item.status === 'failed'"
+                v-if="item.status === 'pending'"
                 link type="success" size="small"
                 @click="handleAiCreate(item)"
               >审核</el-button>
@@ -274,7 +274,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { FullScreen } from '@element-plus/icons-vue'
 import { getRuleValidationList, getRuleValidationDetail, validateRule, batchValidateRules } from '@/api/ruleValidation'
-import { getAiReviewList, getAiReviewDetail, createAiReview, retryAiReview } from '@/api/aiReview'
+import { getAiReviewList, getAiReviewDetail, createAiReview, retryAiReview, startAiReview } from '@/api/aiReview'
 import { getPendingList, getReviewData, submitReview } from '@/api/review'
 import { getModelOptions } from '@/api/model'
 import { getPromptOptions } from '@/api/prompt'
@@ -313,6 +313,7 @@ const ruleFilters = [
 const aiFilters = [
   { label: '全部', value: 'all' },
   { label: '待审核', value: 'pending_review' },
+  { label: '审核中', value: 'reviewing' },
   { label: '已审核', value: 'reviewed' },
 ]
 const humanFilters = [
@@ -487,7 +488,8 @@ const aiDetailData = ref(null)
 
 const filteredAiTasks = computed(() => {
   if (aiFilter.value === 'all') return aiTasks.value
-  if (aiFilter.value === 'pending_review') return aiTasks.value.filter(t => t.status === 'pending' || t.status === 'reviewing' || t.status === 'failed')
+  if (aiFilter.value === 'pending_review') return aiTasks.value.filter(t => t.status === 'pending' || t.status === 'failed')
+  if (aiFilter.value === 'reviewing') return aiTasks.value.filter(t => t.status === 'reviewing')
   return aiTasks.value.filter(t => t.status === aiFilter.value)
 })
 
@@ -519,9 +521,14 @@ async function handleAiRetry(item) {
 
 async function handleAiCreate(item) {
   try {
-    await createAiReview({ triple_task_id: item.triple_task_id, model: aiModel.value, prompt_id: aiPromptId.value })
+    if (item.status === 'pending') {
+      await startAiReview(item.id, { model: aiModel.value, prompt_id: aiPromptId.value })
+    } else {
+      await createAiReview({ triple_task_id: item.triple_task_id, model: aiModel.value, prompt_id: aiPromptId.value })
+    }
+    // 立即更新本地状态为 reviewing，避免等轮询
+    item.status = 'reviewing'
     ElMessage.success('AI审核已触发')
-    loadAiTasks()
   } catch {}
 }
 

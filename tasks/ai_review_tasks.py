@@ -1,5 +1,5 @@
 import json
-from openai import APITimeoutError, APIConnectionError, RateLimitError, AuthenticationError
+from openai import APITimeoutError, APIConnectionError, RateLimitError, AuthenticationError, APIError
 from models import db, TripleTask, AiReview, now_cn
 from tasks.celery_app import celery
 from services.llm_service import call_llm
@@ -16,6 +16,8 @@ def _friendly_error(exc: Exception) -> str:
         return "LLM 认证失败，请检查 API Key 配置"
     if isinstance(exc, RateLimitError):
         return "LLM 请求频率超限，请稍后重试"
+    if isinstance(exc, APIError):
+        return "LLM 服务暂时不可用，请稍后重试"
     if isinstance(exc, ValueError) and "非法 JSON" in str(exc):
         return "LLM 返回格式异常，请重试或更换模型"
     if isinstance(exc, ValueError):
@@ -32,7 +34,7 @@ def _get_flask_app():
     return app_module.create_app()
 
 
-@celery.task(bind=True, name="ai_review_tasks.run_ai_review")
+@celery.task(bind=True, name="ai_review_tasks.run_ai_review", autoretry_for=(APIConnectionError, APITimeoutError, RateLimitError, APIError), retry_backoff=60, retry_backoff_max=300, retry_jitter=True, max_retries=3)
 def run_ai_review(self, review_id: int, triple_task_id: int, model: str = "deepseek", prompt_id: int = None):
     """AI审核: 调用LLM对三元组数据进行多维度评估"""
     flask_app = _get_flask_app()
@@ -67,6 +69,7 @@ def run_ai_review(self, review_id: int, triple_task_id: int, model: str = "deeps
                 model_name=model,
                 task_id=review_id,
                 thinking_prefix="ai_review_thinking",
+                scene="AI审核",
             )
 
             review_result = parse_ai_review_response(response_text)
@@ -81,6 +84,12 @@ def run_ai_review(self, review_id: int, triple_task_id: int, model: str = "deeps
 
             return {"status": "reviewed", "review_id": review_id}
 
+        except (APIConnectionError, APITimeoutError, RateLimitError, APIError) as e:
+            # 暂时性错误：状态回退为 pending，由 Celery 自动重试
+            ai_review.status = "pending"
+            ai_review.error_message = f"第{self.request.retries + 1}次重试中: {_friendly_error(e)}"
+            db.session.commit()
+            raise
         except Exception as e:
             ai_review.status = "failed"
             ai_review.error_message = _friendly_error(e)

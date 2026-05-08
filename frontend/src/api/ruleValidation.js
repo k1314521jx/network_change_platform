@@ -19,3 +19,20 @@ export function batchValidateRules(ids) {
 export function getPassedTasks() {
   return request({ url: '/api/rule-validation/passed-tasks', method: 'get' })
 }
+
+export function exportTripleXlsx(tripleTaskId) {
+  return request({
+    url: `/api/rule-validation/${tripleTaskId}/export-xlsx`,
+    method: 'get',
+    responseType: 'blob',
+  })
+}
+
+export function importTripleXlsx(tripleTaskId, formData) {
+  return request({
+    url: `/api/rule-validation/${tripleTaskId}/import-xlsx`,
+    method: 'post',
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}

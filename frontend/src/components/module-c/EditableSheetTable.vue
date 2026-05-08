@@ -7,6 +7,20 @@
       <el-button v-if="showErrorToggle" size="small" :type="errorOnly ? 'primary' : ''" @click="emit('update:errorOnly', !errorOnly)">
         {{ errorOnly ? '显示全部' : '只看错误行' }}
       </el-button>
+      <el-button v-if="showExportImport" size="small" @click="emit('export')">
+        <el-icon><Download /></el-icon> 导出
+      </el-button>
+      <el-upload
+        v-if="showExportImport"
+        :show-file-list="false"
+        :before-upload="handleImport"
+        accept=".xlsx"
+        :auto-upload="false"
+      >
+        <el-button size="small">
+          <el-icon><Upload /></el-icon> 导入
+        </el-button>
+      </el-upload>
     </div>
     <el-table :data="localData" stripe border size="small" style="width: 100%;" :max-height="maxHeight">
       <el-table-column v-for="col in columns" :key="col" :prop="col" :label="col" :min-width="getColumnWidth(col)">
@@ -74,7 +88,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, Download, Upload } from '@element-plus/icons-vue'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -85,8 +99,9 @@ const props = defineProps({
   maxHeight: { type: [Number, String], default: 450 },
   showErrorToggle: { type: Boolean, default: false },
   errorOnly: { type: Boolean, default: false },
+  showExportImport: { type: Boolean, default: false },
 })
-const emit = defineEmits(['update:modelValue', 'update:errorOnly'])
+const emit = defineEmits(['update:modelValue', 'update:errorOnly', 'export', 'import'])
 
 const localData = ref([])
 
@@ -177,6 +192,11 @@ async function deleteRow(index) {
 
 function emitUpdate() {
   emit('update:modelValue', localData.value.map(r => ({ ...r })))
+}
+
+function handleImport(file) {
+  emit('import', file)
+  return false // 阻止自动上传
 }
 
 // ---- 违规标记 ----

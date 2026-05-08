@@ -1,5 +1,7 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from models import db, TripleTask, RuleValidation
+from services.xlsx_handler import export_triple_to_xlsx, import_xlsx_to_triple
+from datetime import datetime
 
 rule_validation_bp = Blueprint("rule_validation", __name__)
 
@@ -82,3 +84,66 @@ def list_passed_tasks():
         for t in tasks
     ]
     return jsonify({"code": 0, "data": items})
+
+
+@rule_validation_bp.route("/api/rule-validation/<int:triple_task_id>/export-xlsx", methods=["GET"])
+def export_triple_xlsx(triple_task_id):
+    """导出三元组数据为 xlsx 文件（3个sheet页）"""
+    task = db.session.get(TripleTask, triple_task_id)
+    if not task:
+        return jsonify({"code": -1, "message": "任务不存在"}), 404
+
+    if not task.triple_json:
+        return jsonify({"code": -1, "message": "该任务没有三元组数据"}), 400
+
+    try:
+        # 生成 xlsx 文件
+        xlsx_bytes = export_triple_to_xlsx(task.triple_json)
+
+        # 生成文件名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"rule_validation_{triple_task_id}_{timestamp}.xlsx"
+
+        return Response(
+            xlsx_bytes.getvalue(),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    except Exception as e:
+        return jsonify({"code": -1, "message": f"导出失败: {str(e)}"}), 500
+
+
+@rule_validation_bp.route("/api/rule-validation/<int:triple_task_id>/import-xlsx", methods=["POST"])
+def import_triple_xlsx(triple_task_id):
+    """导入 xlsx 文件，解析并返回 JSON 数据"""
+    task = db.session.get(TripleTask, triple_task_id)
+    if not task:
+        return jsonify({"code": -1, "message": "任务不存在"}), 404
+
+    # 检查文件
+    if "file" not in request.files:
+        return jsonify({"code": -1, "message": "未找到上传文件"}), 400
+
+    file = request.files["file"]
+    if not file.filename:
+        return jsonify({"code": -1, "message": "文件名为空"}), 400
+
+    # 验证文件扩展名
+    if not file.filename.lower().endswith(".xlsx"):
+        return jsonify({"code": -1, "message": "只支持 .xlsx 格式文件"}), 400
+
+    try:
+        # 解析 xlsx 文件
+        triple_data = import_xlsx_to_triple(file.stream)
+
+        return jsonify({
+            "code": 0,
+            "message": "导入成功",
+            "data": triple_data,
+        })
+    except ValueError as e:
+        # 验证错误（格式不符合要求）
+        return jsonify({"code": -1, "message": str(e)}), 400
+    except Exception as e:
+        # 其他错误
+        return jsonify({"code": -1, "message": f"导入失败: {str(e)}"}), 500

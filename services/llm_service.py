@@ -105,12 +105,13 @@ def get_ai_review_thinking(review_id: int) -> dict | None:
         return None
 
 
-def call_llm(system_prompt: str, user_message: str, model_name: str = None, task_id: int = None, thinking_prefix: str = "triple_thinking") -> str:
+def call_llm(system_prompt: str, user_message: str, model_name: str = None, task_id: int = None, thinking_prefix: str = "triple_thinking", scene: str = "") -> str:
     """调用 LLM，使用流式请求 + 总耗时硬限制。
     非流式请求的 read timeout 在流式响应中会被每个 chunk 重置，
     导致推理模型（如 DeepSeek）总耗时可能远超设定值。
     改用流式请求手动累积内容，严格限制总耗时。
     """
+    scene_tag = f"[{scene}] " if scene else ""
     # 优先从数据库查模型配置，fallback 到 config.py
     cfg = None
     if model_name:
@@ -125,8 +126,8 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
     model_id = cfg["model"]
     base_url = cfg["base_url"]
 
-    logger.info(f"[LLM] 请求开始(流式) | 模型: {model_id} | base_url: {base_url} | 超时: {LLM_TIMEOUT}s")
-    logger.info(f"[LLM] system_prompt: {len(system_prompt)} 字符 | user_message: {len(user_message)} 字符")
+    logger.info(f"[LLM] {scene_tag}请求开始(流式) | 模型: {model_id} | base_url: {base_url} | 超时: {LLM_TIMEOUT}s")
+    logger.info(f"[LLM] {scene_tag}system_prompt: {len(system_prompt)} 字符 | user_message: {len(user_message)} 字符")
 
     client = OpenAI(api_key=cfg["api_key"], base_url=base_url, timeout=30.0)
 
@@ -143,7 +144,7 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
             stream=True,
         )
     except Exception as e:
-        _handle_exception(e, start_time, model_id, base_url)
+        _handle_exception(e, start_time, model_id, base_url, scene_tag)
         raise
 
     # 手动累积流式内容，严格检测总耗时
@@ -156,7 +157,7 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
         for chunk in stream:
             elapsed = time.time() - start_time
             if elapsed > LLM_TIMEOUT:
-                logger.error(f"[LLM] 总耗时超限({round(elapsed)}s > {LLM_TIMEOUT}s)，强制中断")
+                logger.error(f"[LLM] {scene_tag}总耗时超限({round(elapsed)}s > {LLM_TIMEOUT}s)，强制中断")
                 raise TimeoutError(f"LLM 总耗时超限({LLM_TIMEOUT}s)")
 
             if not chunk.choices:
@@ -183,7 +184,7 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
     except TimeoutError:
         raise
     except Exception as e:
-        _handle_exception(e, start_time, model_id, base_url)
+        _handle_exception(e, start_time, model_id, base_url, scene_tag)
         raise
 
     elapsed = round(time.time() - start_time, 2)
@@ -200,7 +201,7 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
             save_thinking_to_redis(task_id, model_id, thinking_content)
 
     logger.info(
-        f"[LLM] 请求成功 | 模型: {model_id} | 耗时: {elapsed}s | "
+        f"[LLM] {scene_tag}请求成功 | 模型: {model_id} | 耗时: {elapsed}s | "
         f"finish_reason: {finish_reason} | "
         f"prompt_tokens: {usage.prompt_tokens if usage else 'N/A'} | "
         f"completion_tokens: {usage.completion_tokens if usage else 'N/A'} | "
@@ -209,16 +210,16 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
     )
 
     if finish_reason == "length":
-        logger.warning("[LLM] 输出被截断，可能不完整")
+        logger.warning(f"[LLM] {scene_tag}输出被截断，可能不完整")
 
     if not content:
-        logger.error(f"[LLM] 返回空内容! finish_reason={finish_reason}")
+        logger.error(f"[LLM] {scene_tag}返回空内容! finish_reason={finish_reason}")
         raise ValueError(f"LLM 返回空内容 (finish_reason={finish_reason})")
 
     return content
 
 
-def _handle_exception(e: Exception, start_time: float, model_id: str, base_url: str) -> None:
+def _handle_exception(e: Exception, start_time: float, model_id: str, base_url: str, scene_tag: str = "") -> None:
     """统一处理 LLM 调用异常，记录详细日志"""
     elapsed = round(time.time() - start_time, 2)
     exc_type = type(e)
@@ -228,16 +229,16 @@ def _handle_exception(e: Exception, start_time: float, model_id: str, base_url: 
             error_msg = msg_template.format(
                 timeout=LLM_TIMEOUT, model=model_id, base_url=base_url, detail=str(e)
             )
-            logger.error(f"[LLM] {error_msg} | 耗时: {elapsed}s")
+            logger.error(f"[LLM] {scene_tag}{error_msg} | 耗时: {elapsed}s")
             break
     else:
         error_msg = f"未知异常: {exc_type.__module__}.{exc_type.__qualname__} | 详情: {e}"
-        logger.error(f"[LLM] {error_msg} | 模型: {model_id} | base_url: {base_url} | 耗时: {elapsed}s")
+        logger.error(f"[LLM] {scene_tag}{error_msg} | 模型: {model_id} | base_url: {base_url} | 耗时: {elapsed}s")
 
     if isinstance(e, APIError):
         status_code = getattr(e, 'status_code', None)
         body = getattr(e, 'body', None)
-        logger.error(f"[LLM] HTTP状态码: {status_code} | 响应体: {body}")
+        logger.error(f"[LLM] {scene_tag}HTTP状态码: {status_code} | 响应体: {body}")
 
 
 def parse_and_validate(raw_response: str) -> dict:

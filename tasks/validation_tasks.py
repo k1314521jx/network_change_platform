@@ -1,5 +1,5 @@
 import json
-from models import db, TripleTask, RuleValidation
+from models import db, TripleTask, RuleValidation, AiReview
 from tasks.celery_app import celery
 from services.triple_validator import validate_triple
 
@@ -28,6 +28,17 @@ def validate_triple_task(self, triple_task_id: int):
             rv.validation_result = validation
             if validation["passed"]:
                 rv.status = "passed"
+
+                # 自动创建 AI 审核记录（如果不存在）
+                existing_ai_review = AiReview.query.filter_by(triple_task_id=triple_task_id).first()
+                if not existing_ai_review:
+                    # 使用默认模型创建 AI 审核记录
+                    ai_review = AiReview(
+                        triple_task_id=triple_task_id,
+                        model="deepseek",  # 默认模型
+                        status="pending"
+                    )
+                    db.session.add(ai_review)
             else:
                 rv.status = "unqualified"
             db.session.commit()
