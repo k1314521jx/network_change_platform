@@ -26,17 +26,17 @@ def list_pending_reviews():
     # 查询已审核通过的 triple_task_id
     approved_ids = db.session.query(TripleReview.triple_task_id).filter(
         TripleReview.review_status == "approved"
-    ).subquery()
+    )
 
     # 查询已通过AI审核的 triple_task_id
     ai_reviewed_ids = db.session.query(AiReview.triple_task_id).filter(
         AiReview.status == "reviewed"
-    ).subquery()
+    )
 
     query = TripleTask.query.filter(
         TripleTask.status == "success",
         TripleTask.id.in_(ai_reviewed_ids),
-        ~TripleTask.id.in_(approved_ids)
+        TripleTask.id.notin_(approved_ids),
     ).order_by(TripleTask.created_at.desc())
 
     tasks = query.all()

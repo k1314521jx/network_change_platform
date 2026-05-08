@@ -27,29 +27,37 @@ celery.conf.update(
     worker_prefetch_multiplier=1,
 )
 
-# 配置日志：同时输出到控制台和文件
+# 配置日志：同时输出到控制台和文件（RotatingFileHandler 支持多 worker 并行写入 + 日志分割）
 import logging
+from logging.handlers import RotatingFileHandler
+
+_log_dir = os.path.join(_project_root, "logs")
+os.makedirs(_log_dir, exist_ok=True)
 
 log_formatter = logging.Formatter(
     "[%(asctime)s] %(levelname)s [%(name)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-# 文件 handler
-file_handler = logging.FileHandler(
-    os.path.join(_project_root, "celery.log"), encoding="utf-8"
+# RotatingFileHandler: 50MB 分割，保留 3 个备份
+celery_file_handler = RotatingFileHandler(
+    os.path.join(_log_dir, "celery.log"),
+    maxBytes=50 * 1024 * 1024,
+    backupCount=3,
+    encoding="utf-8",
 )
-file_handler.setFormatter(log_formatter)
-file_handler.setLevel(logging.INFO)
+celery_file_handler.setFormatter(log_formatter)
+celery_file_handler.setLevel(logging.INFO)
 
 # 控制台 handler
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(log_formatter)
 console_handler.setLevel(logging.INFO)
 
-# 配置 llm_service logger
-llm_logger = logging.getLogger("llm_service")
-llm_logger.setLevel(logging.INFO)
-llm_logger.addHandler(file_handler)
-llm_logger.addHandler(console_handler)
-llm_logger.propagate = False
+# 为所有 celery 任务相关 logger 统一配置 handler
+for logger_name in ["llm_service", "ai_review_service", "triple_validator"]:
+    _logger = logging.getLogger(logger_name)
+    _logger.setLevel(logging.INFO)
+    _logger.addHandler(celery_file_handler)
+    _logger.addHandler(console_handler)
+    _logger.propagate = False

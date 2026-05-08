@@ -1,8 +1,48 @@
+import logging
 import os
-from flask import Flask, send_from_directory
+import traceback
+from logging.handlers import RotatingFileHandler
+
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from config import SQLALCHEMY_DATABASE_URI, FLASK_HOST, FLASK_PORT, FLASK_DEBUG, UPLOAD_FOLDER, MAX_CONTENT_LENGTH
 from models import db
+
+
+def _setup_flask_logging(app):
+    """配置 Flask 日志：RotatingFileHandler 50MB 分割 + 3 备份，与 Celery 日志分开存储"""
+    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    formatter = logging.Formatter(
+        "[%(asctime)s] %(levelname)s [%(name)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    file_handler = RotatingFileHandler(
+        os.path.join(log_dir, "flask.log"),
+        maxBytes=50 * 1024 * 1024,
+        backupCount=3,
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+
+    app.logger.setLevel(logging.INFO)
+    app.logger.addHandler(file_handler)
+    app.logger.addHandler(console_handler)
+    app.logger.propagate = False
+
+    # Werkzeug 访问日志也写入 flask.log
+    werkzeug_logger = logging.getLogger("werkzeug")
+    werkzeug_logger.setLevel(logging.INFO)
+    werkzeug_logger.addHandler(file_handler)
+    werkzeug_logger.addHandler(console_handler)
+    werkzeug_logger.propagate = False
 
 
 def create_app():
@@ -17,8 +57,17 @@ def create_app():
     app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
     app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
+    _setup_flask_logging(app)
+
     CORS(app)
     db.init_app(app)
+
+    # 全局异常捕获：记录详细 traceback
+    @app.errorhandler(Exception)
+    def handle_unexpected_error(e):
+        tb = traceback.format_exc()
+        app.logger.error(f"[全局异常] {type(e).__name__}: {e}\n{tb}")
+        return jsonify({"code": 500, "msg": "服务器内部错误", "data": None}), 500
 
     # Ensure upload folder
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
