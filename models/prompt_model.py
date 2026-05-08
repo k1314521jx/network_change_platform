@@ -12,5 +12,6 @@ class PromptConfig(db.Model):
     is_current = db.Column(db.Boolean, nullable=False, default=True)
     is_deleted = db.Column(db.Boolean, nullable=False, default=False)
     is_builtin = db.Column(db.Boolean, nullable=False, default=False)
+    changelog = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=now_cn)
     updated_at = db.Column(db.DateTime, default=now_cn, onupdate=now_cn)

@@ -104,6 +104,19 @@ def retry_task(task_id):
     return jsonify({"code": 0, "message": "重试已触发"})
 
 
+@rule_bp.route("/api/rule/tasks/<int:task_id>", methods=["DELETE"])
+def delete_task(task_id):
+    """删除规则任务（软删除）"""
+    task = db.session.get(RuleTask, task_id)
+    if not task:
+        return jsonify({"code": -1, "message": "任务不存在"}), 404
+    if task.status != "failed":
+        return jsonify({"code": -1, "message": "只能删除失败的任务"}), 400
+    task.is_deleted = True
+    db.session.commit()
+    return jsonify({"code": 0, "message": "删除成功"})
+
+
 # 为 RuleTask 添加 to_dict 方法
 def _rule_task_to_dict(self):
     return {

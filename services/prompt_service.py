@@ -38,20 +38,21 @@ def get_prompt_detail(prompt_id):
     return db.session.get(PromptConfig, prompt_id)
 
 
-def create_prompt(name, ptype, content):
+def create_prompt(name, ptype, content, changelog=None):
     prompt = PromptConfig(
         name=name,
         type=ptype,
         content=content,
         version=1,
         is_current=True,
+        changelog=changelog,
     )
     db.session.add(prompt)
     db.session.commit()
     return prompt
 
 
-def update_prompt(prompt_id, content):
+def update_prompt(prompt_id, content, changelog=None):
     old = db.session.get(PromptConfig, prompt_id)
     if not old or old.is_deleted:
         return None
@@ -63,6 +64,7 @@ def update_prompt(prompt_id, content):
         version=old.version + 1,
         is_current=True,
         is_builtin=old.is_builtin,
+        changelog=changelog,
     )
     db.session.add(new)
     db.session.commit()

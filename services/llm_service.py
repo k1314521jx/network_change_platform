@@ -5,6 +5,7 @@ from datetime import datetime
 from httpx import ConnectError, ReadTimeout
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError
 from config import MODELS, ACTIVE_MODEL, REDIS_THINKING_CONFIG, LLM_THINKING_TTL
+from services.model_service import get_model_config_by_name, get_first_active_model
 
 logger = logging.getLogger("llm_service")
 
@@ -21,6 +22,10 @@ EXCEPTION_MAP = {
 
 
 def get_active_model_config():
+    """优先从数据库获取启用模型，fallback 到 config.py"""
+    m = get_first_active_model()
+    if m:
+        return {"api_key": m.api_key, "base_url": m.base_url, "model": m.model}
     return MODELS.get(ACTIVE_MODEL, MODELS["deepseek"])
 
 
@@ -106,9 +111,15 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
     导致推理模型（如 DeepSeek）总耗时可能远超设定值。
     改用流式请求手动累积内容，严格限制总耗时。
     """
-    if model_name and model_name in MODELS:
+    # 优先从数据库查模型配置，fallback 到 config.py
+    cfg = None
+    if model_name:
+        db_model = get_model_config_by_name(model_name)
+        if db_model:
+            cfg = {"api_key": db_model.api_key, "base_url": db_model.base_url, "model": db_model.model}
+    if not cfg and model_name and model_name in MODELS:
         cfg = MODELS[model_name]
-    else:
+    if not cfg:
         cfg = get_active_model_config()
 
     model_id = cfg["model"]
