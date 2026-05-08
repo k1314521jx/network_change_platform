@@ -1,4 +1,4 @@
-from models.models import db, now_cn
+from .models import db, now_cn
 
 
 class PromptConfig(db.Model):

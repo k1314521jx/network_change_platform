@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, TripleTask, TripleReview, AiReview, now_cn
+from models import db, TripleTask, TripleReview, AiReview, RuleValidation, now_cn
 
 review_bp = Blueprint("review", __name__)
 
@@ -28,6 +28,11 @@ def list_pending_reviews():
         TripleReview.review_status == "approved"
     )
 
+    # 查询已通过规则验证的 triple_task_id
+    rule_passed_ids = db.session.query(RuleValidation.triple_task_id).filter(
+        RuleValidation.status == "passed"
+    )
+
     # 查询已通过AI审核的 triple_task_id
     ai_reviewed_ids = db.session.query(AiReview.triple_task_id).filter(
         AiReview.status == "reviewed"
@@ -35,6 +40,7 @@ def list_pending_reviews():
 
     query = TripleTask.query.filter(
         TripleTask.status == "success",
+        TripleTask.id.in_(rule_passed_ids),
         TripleTask.id.in_(ai_reviewed_ids),
         TripleTask.id.notin_(approved_ids),
     ).order_by(TripleTask.created_at.desc())

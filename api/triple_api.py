@@ -44,8 +44,18 @@ def list_triple_tasks():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 15, type=int)
     filename = request.args.get("filename", "").strip()
+    status = request.args.get("status", "").strip()
+    model = request.args.get("model", "").strip()
 
     query = TripleTask.query
+    if model:
+        query = query.filter(TripleTask.model.like(f"%{model}%"))
+    if status:
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        if len(statuses) == 1:
+            query = query.filter(TripleTask.status == statuses[0])
+        elif statuses:
+            query = query.filter(TripleTask.status.in_(statuses))
     if filename:
         query = query.join(RuleTask, TripleTask.rule_task_id == RuleTask.id).filter(
             RuleTask.filename.like(f"%{filename}%")
@@ -101,12 +111,12 @@ def get_triple_task(task_id):
 
 @triple_bp.route("/api/triple/tasks/<int:task_id>/retry", methods=["POST"])
 def retry_triple_task(task_id):
-    """重试失败或不合格的三元组转换任务"""
+    """重试失败的三元组转换任务"""
     task = db.session.get(TripleTask, task_id)
     if not task:
         return jsonify({"code": -1, "message": "任务不存在"}), 404
-    if task.status not in ("failed", "unqualified"):
-        return jsonify({"code": -1, "message": "只能重试失败或不合格的任务"}), 400
+    if task.status != "failed":
+        return jsonify({"code": -1, "message": "只能重试失败的任务"}), 400
 
     rule_task = db.session.get(RuleTask, task.rule_task_id)
     if not rule_task or rule_task.status != "success":
@@ -114,7 +124,6 @@ def retry_triple_task(task_id):
 
     task.status = "pending"
     task.error_message = None
-    task.validation_result = None
     model = task.model or "deepseek"
     db.session.commit()
 
@@ -155,3 +164,89 @@ def export_thinking(task_id):
         mimetype="text/plain; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@triple_bp.route("/api/triple/tasks/<int:task_id>/validate", methods=["POST"])
+def validate_triple_task(task_id):
+    """触发单条规则验证（异步 Celery 任务）"""
+    task = db.session.get(TripleTask, task_id)
+    if not task:
+        return jsonify({"code": -1, "message": "任务不存在"}), 404
+    if task.status != "success":
+        return jsonify({"code": -1, "message": "只能验证成功的任务"}), 400
+
+    from models import RuleValidation
+    rv = RuleValidation.query.filter_by(triple_task_id=task_id).first()
+    if not rv:
+        rv = RuleValidation(triple_task_id=task_id, status="pending")
+        db.session.add(rv)
+        db.session.commit()
+
+    if rv.status == "validating":
+        return jsonify({"code": -1, "message": "该任务正在验证中"}), 400
+
+    rv.status = "validating"
+    db.session.commit()
+
+    from tasks.validation_tasks import validate_triple_task as do_validate
+    do_validate.delay(task_id)
+    return jsonify({"code": 0, "message": "验证已触发"})
+
+
+@triple_bp.route("/api/triple/tasks/batch-validate", methods=["POST"])
+def batch_validate_triple_tasks():
+    """批量触发规则验证（异步 Celery 任务）"""
+    data = request.get_json()
+    ids = data.get("ids", []) if data else []
+    if not ids:
+        return jsonify({"code": -1, "message": "请选择要验证的任务"}), 400
+
+    from models import RuleValidation
+    from tasks.validation_tasks import validate_triple_task as do_validate
+    triggered = 0
+    for tid in ids:
+        task = db.session.get(TripleTask, tid)
+        if not task or task.status != "success":
+            continue
+        rv = RuleValidation.query.filter_by(triple_task_id=tid).first()
+        if not rv:
+            rv = RuleValidation(triple_task_id=tid, status="pending")
+            db.session.add(rv)
+        if rv.status == "validating":
+            continue
+        rv.status = "validating"
+        db.session.commit()
+        do_validate.delay(tid)
+        triggered += 1
+
+    return jsonify({"code": 0, "message": f"已触发 {triggered} 条验证任务"})
+
+
+@triple_bp.route("/api/triple/tasks/<int:task_id>/update-and-validate", methods=["POST"])
+def update_and_validate(task_id):
+    """更新三元组JSON并触发重新验证（供不合格数据修正后使用）"""
+    task = db.session.get(TripleTask, task_id)
+    if not task:
+        return jsonify({"code": -1, "message": "任务不存在"}), 404
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"code": -1, "message": "缺少数据"}), 400
+
+    task.triple_json = {
+        "Table1_Alignment": data.get("table1", []),
+        "Table2_Entities_Attributes": data.get("table2", []),
+        "Table3_Relations": data.get("table3", []),
+    }
+    db.session.commit()
+
+    from models import RuleValidation
+    rv = RuleValidation.query.filter_by(triple_task_id=task_id).first()
+    if rv:
+        rv.status = "validating"
+        rv.validation_result = None
+        db.session.commit()
+        from tasks.validation_tasks import validate_triple_task as do_validate
+        do_validate.delay(task_id)
+
+    return jsonify({"code": 0, "message": "已更新并触发重新验证"})

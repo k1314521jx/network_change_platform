@@ -4,7 +4,6 @@ from models import db, RuleTask, TripleTask
 from tasks.celery_app import celery
 from services.llm_service import call_llm, parse_and_validate
 from services.prompt_templates import SYSTEM_PROMPT, INPUT_SCHEMA_DOC
-from services.triple_validator import validate_triple
 
 
 def _friendly_error(exc: Exception) -> str:
@@ -65,15 +64,6 @@ def convert_to_triple(self, triple_task_id: int, rule_task_id: int, model: str =
 
             response_text = call_llm(system_prompt, user_message, model_name=model, task_id=triple_task_id)
             triple_data = parse_and_validate(response_text)
-
-            # 规则校验
-            validation = validate_triple(triple_data)
-            if not validation["passed"]:
-                triple_task.status = "unqualified"
-                triple_task.triple_json = triple_data
-                triple_task.validation_result = validation
-                db.session.commit()
-                return {"status": "unqualified", "triple_task_id": triple_task_id}
 
             triple_task.status = "success"
             triple_task.triple_json = triple_data

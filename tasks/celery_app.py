@@ -13,7 +13,7 @@ celery = Celery(
     "network_change_platform",
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND,
-    include=["tasks.rule_tasks", "tasks.triple_tasks", "tasks.ai_review_tasks"],
+    include=["tasks.rule_tasks", "tasks.triple_tasks", "tasks.ai_review_tasks", "tasks.validation_tasks"],
 )
 
 celery.conf.update(

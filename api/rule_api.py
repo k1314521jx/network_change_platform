@@ -49,7 +49,15 @@ def list_tasks():
     per_page = request.args.get("per_page", 15, type=int)
     filename = request.args.get("filename", "").strip()
 
+    status = request.args.get("status", "").strip()
+
     query = RuleTask.query.filter_by(is_deleted=False)
+    if status:
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        if len(statuses) == 1:
+            query = query.filter(RuleTask.status == statuses[0])
+        elif statuses:
+            query = query.filter(RuleTask.status.in_(statuses))
     if filename:
         query = query.filter(RuleTask.filename.like(f"%{filename}%"))
     query = query.order_by(RuleTask.created_at.desc())

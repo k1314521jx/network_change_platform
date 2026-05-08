@@ -30,7 +30,7 @@ class TripleTask(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     rule_task_id = db.Column(db.Integer, db.ForeignKey("rule_task.id"), nullable=False)
     model = db.Column(db.String(50), default="deepseek")
-    status = db.Column(db.Enum("pending", "success", "failed", "unqualified"), default="pending", index=True)
+    status = db.Column(db.Enum("pending", "success", "failed"), default="pending", index=True)
     triple_json = db.Column(db.JSON)
     error_message = db.Column(db.String(500))
     validation_result = db.Column(db.JSON)
