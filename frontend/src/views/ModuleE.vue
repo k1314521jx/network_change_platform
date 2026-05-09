@@ -1,13 +1,16 @@
 <template>
   <div class="module-e">
     <el-tabs v-model="activeTab" type="border-card">
-      <el-tab-pane label="抽取提示词" name="extraction">
+      <el-tab-pane name="extraction">
+        <template #label><el-icon><EditPen /></el-icon> 抽取提示词</template>
         <PromptTab type="extraction" />
       </el-tab-pane>
-      <el-tab-pane label="审核提示词" name="review">
+      <el-tab-pane name="review">
+        <template #label><el-icon><Document /></el-icon> 审核提示词</template>
         <PromptTab type="review" />
       </el-tab-pane>
-      <el-tab-pane label="模型配置" name="model">
+      <el-tab-pane name="model">
+        <template #label><el-icon><Setting /></el-icon> 模型配置</template>
         <ModelTab />
       </el-tab-pane>
     </el-tabs>

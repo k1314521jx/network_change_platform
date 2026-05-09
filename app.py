@@ -81,6 +81,7 @@ def create_app():
     from api.prompt_api import prompt_bp
     from api.model_api import model_bp
     from api.rule_validation_api import rule_validation_bp
+    from api.graph_api import graph_bp
 
     app.register_blueprint(rule_bp)
     app.register_blueprint(triple_bp)
@@ -90,6 +91,7 @@ def create_app():
     app.register_blueprint(prompt_bp)
     app.register_blueprint(model_bp)
     app.register_blueprint(rule_validation_bp)
+    app.register_blueprint(graph_bp)
 
     # SPA catch-all: serve Vue's index.html for any non-API route
     @app.route("/", defaults={"path": ""})

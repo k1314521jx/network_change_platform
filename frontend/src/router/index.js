@@ -32,6 +32,12 @@ const routes = [
         meta: { title: '模块D: 三元组入库' },
       },
       {
+        path: 'module-f',
+        name: 'ModuleF',
+        component: () => import('@/views/ModuleF.vue'),
+        meta: { title: '关系图谱查看' },
+      },
+      {
         path: 'module-e',
         name: 'ModuleE',
         component: () => import('@/views/ModuleE.vue'),

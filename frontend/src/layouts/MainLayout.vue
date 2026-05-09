@@ -30,8 +30,12 @@
           <el-icon><Coin /></el-icon>
           <template #title>三元组入库</template>
         </el-menu-item>
+        <el-menu-item index="/module-f">
+          <el-icon><Share /></el-icon>
+          <template #title>关系图谱</template>
+        </el-menu-item>
         <el-menu-item index="/module-e">
-          <el-icon><Setting /></el-icon>
+          <el-icon><Tools /></el-icon>
           <template #title>配置中心</template>
         </el-menu-item>
       </el-menu>
