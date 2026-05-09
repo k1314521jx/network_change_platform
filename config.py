@@ -58,8 +58,9 @@ UPLOAD_FOLDER = "uploads"
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
 
 # Celery
-CELERY_BROKER_URL = f"redis://{REDIS_CONFIG['host']}:{REDIS_CONFIG['port']}/{REDIS_CONFIG['db']}"
-CELERY_RESULT_BACKEND = f"redis://{REDIS_BACKEND_CONFIG['host']}:{REDIS_BACKEND_CONFIG['port']}/{REDIS_BACKEND_CONFIG['db']}"
+_redis_auth = f":{REDIS_CONFIG['password']}@" if REDIS_CONFIG['password'] else ""
+CELERY_BROKER_URL = f"redis://{_redis_auth}{REDIS_CONFIG['host']}:{REDIS_CONFIG['port']}/{REDIS_CONFIG['db']}"
+CELERY_RESULT_BACKEND = f"redis://{_redis_auth}{REDIS_BACKEND_CONFIG['host']}:{REDIS_BACKEND_CONFIG['port']}/{REDIS_BACKEND_CONFIG['db']}"
 
 # SQLAlchemy
 SQLALCHEMY_DATABASE_URI = (

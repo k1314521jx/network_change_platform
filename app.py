@@ -5,8 +5,15 @@ from logging.handlers import RotatingFileHandler
 
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
+
 from config import SQLALCHEMY_DATABASE_URI, FLASK_HOST, FLASK_PORT, FLASK_DEBUG, UPLOAD_FOLDER, MAX_CONTENT_LENGTH
 from models import db
+
+
+def post_fork(server, worker):
+    """gunicorn worker fork 后重建数据库连接池，避免 preload 导致的连接共享问题"""
+    with server.app.app_context():
+        db.engine.dispose()
 
 
 def _setup_flask_logging(app):
@@ -49,10 +56,12 @@ def create_app():
     app = Flask(
         __name__,
         static_folder="frontend/dist",
-        static_url_path="",
+        static_url_path=None,
     )
     app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["SQLALCHEMY_POOL_RECYCLE"] = 3600
+    app.config["SQLALCHEMY_POOL_PRE_PING"] = True
     app.config["SECRET_KEY"] = "network-change-platform-secret"
     app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
     app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH

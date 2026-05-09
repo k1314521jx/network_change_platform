@@ -207,20 +207,35 @@
             </div>
           </div>
         </template>
+        <div v-if="isRuleUnqualified && ruleDetailData.triple_json" class="detail-toolbar">
+          <el-button size="small" :loading="exportingXlsx" @click="handleExportXlsx">
+            <el-icon><Download /></el-icon> 导出
+          </el-button>
+          <el-upload
+            :show-file-list="false"
+            :before-upload="handleImportXlsx"
+            accept=".xlsx"
+            :auto-upload="false"
+          >
+            <el-button size="small" :loading="importingXlsx">
+              <el-icon><Upload /></el-icon> 导入
+            </el-button>
+          </el-upload>
+        </div>
         <el-tabs v-if="ruleDetailData.triple_json" v-model="detailActiveTab" class="detail-tabs">
-          <el-tab-pane label="Table1" name="t1">
+          <el-tab-pane label="Table1_Alignment" name="t1">
             <EditableSheetTable v-if="isRuleUnqualified && !errorOnlyT1" v-model="editableRuleData.table1" :columns="t1Cols" :violations="ruleViolations" tableName="Table1_Alignment" :maxHeight="detailTableHeight" :showErrorToggle="true" v-model:errorOnly="errorOnlyT1" />
             <ReadonlyTable v-else :data="errorOnlyT1 && isRuleUnqualified ? errorFilteredData.table1 : ruleTableData.table1" :columns="t1Cols" :violations="ruleViolations" tableName="Table1_Alignment" :maxHeight="detailTableHeight" />
           </el-tab-pane>
-          <el-tab-pane label="Table2" name="t2">
+          <el-tab-pane label="Table2_Entities_Attributes" name="t2">
             <EditableSheetTable v-if="isRuleUnqualified && !errorOnlyT2" v-model="editableRuleData.table2" :columns="t2Cols" :violations="ruleViolations" tableName="Table2_Entities_Attributes" :maxHeight="detailTableHeight" :showErrorToggle="true" v-model:errorOnly="errorOnlyT2" />
             <ReadonlyTable v-else :data="errorOnlyT2 && isRuleUnqualified ? errorFilteredData.table2 : ruleTableData.table2" :columns="t2Cols" :violations="ruleViolations" tableName="Table2_Entities_Attributes" :maxHeight="detailTableHeight" />
           </el-tab-pane>
-          <el-tab-pane label="Table3" name="t3">
+          <el-tab-pane label="Table3_Relations" name="t3">
             <EditableSheetTable v-if="isRuleUnqualified && !errorOnlyT3" v-model="editableRuleData.table3" :columns="t3Cols" :violations="ruleViolations" tableName="Table3_Relations" :maxHeight="detailTableHeight" :showErrorToggle="true" v-model:errorOnly="errorOnlyT3" />
             <ReadonlyTable v-else :data="errorOnlyT3 && isRuleUnqualified ? errorFilteredData.table3 : ruleTableData.table3" :columns="t3Cols" :violations="ruleViolations" tableName="Table3_Relations" :maxHeight="detailTableHeight" />
           </el-tab-pane>
-          <el-tab-pane label="JSON" name="raw">
+          <el-tab-pane label="原始JSON" name="raw">
             <JsonPreview :data="ruleDetailData.triple_json" />
           </el-tab-pane>
         </el-tabs>
@@ -310,8 +325,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { FullScreen } from '@element-plus/icons-vue'
-import { getRuleValidationList, getRuleValidationDetail, validateRule, batchValidateRules } from '@/api/ruleValidation'
+import { FullScreen, Download, Upload } from '@element-plus/icons-vue'
+import { getRuleValidationList, getRuleValidationDetail, validateRule, batchValidateRules, exportTripleXlsx, importTripleXlsx } from '@/api/ruleValidation'
 import { getAiReviewList, getAiReviewDetail, createAiReview, retryAiReview, startAiReview } from '@/api/aiReview'
 import { getPendingList, getReviewData, submitReview } from '@/api/review'
 import { getModelOptions } from '@/api/model'
@@ -387,6 +402,9 @@ const errorOnlyT1 = ref(false)
 const errorOnlyT2 = ref(false)
 const errorOnlyT3 = ref(false)
 const saveAndValidating = ref(false)
+const showViolations = ref(true)
+const exportingXlsx = ref(false)
+const importingXlsx = ref(false)
 
 const filteredRuleTasks = computed(() => {
   if (ruleFilter.value === 'all') return ruleTasks.value
@@ -438,6 +456,7 @@ async function openRuleDetail(item) {
     errorOnlyT1.value = false
     errorOnlyT2.value = false
     errorOnlyT3.value = false
+    showViolations.value = true
     if (res.data.validation_status === 'unqualified') {
       const json = res.data.triple_json || {}
       editableRuleData.value = {
@@ -450,7 +469,7 @@ async function openRuleDetail(item) {
   } catch {}
 }
 
-const ruleViolations = computed(() => ruleDetailData.value?.validation_result?.violations || [])
+const ruleViolations = computed(() => showViolations.value ? (ruleDetailData.value?.validation_result?.violations || []) : [])
 const ruleTableData = computed(() => {
   const json = ruleDetailData.value?.triple_json || {}
   return { table1: json.Table1_Alignment || [], table2: json.Table2_Entities_Attributes || [], table3: json.Table3_Relations || [] }
@@ -512,6 +531,50 @@ async function handleExportThinking(taskId) {
   } catch {} finally {
     exporting.value = false
   }
+}
+
+async function handleExportXlsx() {
+  exportingXlsx.value = true
+  try {
+    const resp = await exportTripleXlsx(ruleDetailData.value.id)
+    const url = window.URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `triple_task_${ruleDetailData.value.id}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  } catch {} finally {
+    exportingXlsx.value = false
+  }
+}
+
+async function handleImportXlsx(file) {
+  if (!file.name.toLowerCase().endsWith('.xlsx')) {
+    ElMessage.error('只支持 .xlsx 格式文件')
+    return false
+  }
+  importingXlsx.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await importTripleXlsx(ruleDetailData.value.id, formData)
+    const data = res.data
+    editableRuleData.value = {
+      table1: data.Table1_Alignment || [],
+      table2: data.Table2_Entities_Attributes || [],
+      table3: data.Table3_Relations || [],
+    }
+    showViolations.value = false
+    errorOnlyT1.value = false
+    errorOnlyT2.value = false
+    errorOnlyT3.value = false
+    ElMessage.success('导入成功，数据已覆盖')
+  } catch {} finally {
+    importingXlsx.value = false
+  }
+  return false
 }
 
 // ---- 列2：AI审核 ----
@@ -847,6 +910,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .detail-header { display: flex; align-items: flex-start; justify-content: space-between; }
 .detail-header .el-descriptions { flex: 1; }
 .detail-tabs { margin-top: 16px; }
+.detail-toolbar { display: flex; gap: 8px; align-items: center; }
 .tab-toolbar { margin-bottom: 8px; }
 .violation-summary { border: 1px solid #EBEEF5; border-radius: 6px; padding: 12px 16px; }
 .violation-summary-title { font-weight: 600; margin-bottom: 10px; color: #303133; }
