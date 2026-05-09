@@ -30,7 +30,7 @@ REDIS_THINKING_CONFIG = {
 }
 
 # LLM 思考过程缓存过期时间（秒）
-LLM_THINKING_TTL = 86400  # 24小时
+LLM_THINKING_TTL = 86400 * 2  # 48小时
 
 # Neo4j
 NEO4J_CONFIG = {

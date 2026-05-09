@@ -39,7 +39,7 @@
       </el-table-column>
     </el-table>
     <div class="pagination-wrap">
-      <el-pagination v-model:current-page="page" :page-size="perPage" :total="total" layout="total, prev, pager, next" background @current-change="handlePageChange" />
+      <el-pagination v-model:current-page="page" v-model:page-size="perPage" :page-sizes="[10, 20, 50]" :total="total" layout="total, sizes, prev, pager, next, jumper" background @current-change="handlePageChange" @size-change="load" />
     </div>
   </el-card>
 </template>

@@ -358,6 +358,10 @@ AI_REVIEW_SYSTEM_PROMPT = """
 - 每个维度 score 为 0-100 整数
 - dimensions 必须恰好7项，name 严格按照上述7个维度名称
 - suggestions 列出所有发现的问题，每个问题必须精确定位到 table + row_index + field
+  - Table1_Alignment 的 row_index 对应数据中 row_index 字段值
+  - Table2_Entities_Attributes 的 row_index 对应数据中 id 字段值
+  - Table3_Relations 的 row_index 为行序号（从1开始）
+  - field 可以使用点号表示子字段，如 "properties.raw_cli_execute"
 - comment 对每个维度的评分理由进行简要说明
 - summary 给出整体评价和改进方向
 - 如果某个维度无问题，该维度 score 为 100，comment 写"无问题"

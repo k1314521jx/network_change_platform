@@ -28,14 +28,18 @@ function formatCell(val) {
 
 function findViolations(row, col) {
   const rowIndex = row.row_index ?? (props.data.indexOf(row) + 1)
+  const rowId = row.id
   return props.violations.filter(v => {
     if (!v.locations) return false
     return v.locations.some(loc => {
-      if (loc.table !== props.tableName || loc.row_index !== rowIndex) return false
-      // 直接匹配列名
+      if (loc.table !== props.tableName) return false
+      // 匹配行: row_index / id（都转字符串比较，兼容数字与字符串）
+      const locIdx = String(loc.row_index)
+      if (locIdx !== String(rowIndex) && (rowId == null || locIdx !== String(rowId))) return false
+      // 匹配列: 直接匹配 / sub_key / 点号子字段(如 "properties.xxx")
       if (loc.field === col) return true
-      // sub_key 匹配：loc.field=parameters, loc.sub_key=source_verify_au, col=parameters
       if (loc.sub_key && loc.field === col) return true
+      if (loc.field.startsWith(col + '.')) return true
       return false
     })
   })
