@@ -21,15 +21,15 @@
     <el-tabs v-model="activeTab">
       <el-tab-pane label="Table1_Alignment" name="table1">
         <template #label>Table1_Alignment <el-badge :value="editData.table1.length" type="info" /></template>
-        <EditableSheetTable v-model="editData.table1" :columns="table1Cols" :readonly="isReadonly" />
+        <EditableSheetTable v-model="editData.table1" :columns="table1Cols" :readonly="isReadonly" :violations="violations" tableName="Table1_Alignment" />
       </el-tab-pane>
       <el-tab-pane label="Table2_Entities_Attributes" name="table2">
         <template #label>Table2_Entities <el-badge :value="editData.table2.length" type="info" /></template>
-        <EditableSheetTable v-model="editData.table2" :columns="table2Cols" :readonly="isReadonly" />
+        <EditableSheetTable v-model="editData.table2" :columns="table2Cols" :readonly="isReadonly" :violations="violations" tableName="Table2_Entities_Attributes" />
       </el-tab-pane>
       <el-tab-pane label="Table3_Relations" name="table3">
         <template #label>Table3_Relations <el-badge :value="editData.table3.length" type="info" /></template>
-        <EditableSheetTable v-model="editData.table3" :columns="table3Cols" :readonly="isReadonly" />
+        <EditableSheetTable v-model="editData.table3" :columns="table3Cols" :readonly="isReadonly" :violations="violations" tableName="Table3_Relations" />
       </el-tab-pane>
     </el-tabs>
   </el-card>
@@ -48,6 +48,7 @@ const props = defineProps({
   isReadonly: { type: Boolean, default: false },
   currentTaskId: { type: Number, default: null },
   reviewStatus: { type: String, default: null },
+  violations: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['submit'])
 const activeTab = ref('table1')

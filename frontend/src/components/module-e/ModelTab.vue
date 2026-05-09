@@ -12,7 +12,9 @@
       <el-table-column prop="name" label="名称" width="120" />
       <el-table-column prop="model" label="模型ID" width="160" />
       <el-table-column prop="base_url" label="Base URL" show-overflow-tooltip />
-      <el-table-column prop="api_key" label="API Key" width="140" show-overflow-tooltip />
+      <el-table-column prop="api_key" label="API Key" width="140">
+        <template #default="{ row }">{{ maskKey(row.api_key) }}</template>
+      </el-table-column>
       <el-table-column label="启用" width="70">
         <template #default="{ row }">
           <el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '是' : '否' }}</el-tag>
@@ -41,7 +43,7 @@
           <el-input v-model="formData.base_url" placeholder="如 https://api.deepseek.com" />
         </el-form-item>
         <el-form-item label="API Key">
-          <el-input v-model="formData.api_key" placeholder="请输入 API Key" show-password />
+          <el-input v-model="formData.api_key" :placeholder="isEdit ? '不修改请保持不变' : '请输入 API Key'" show-password />
         </el-form-item>
         <el-form-item label="模型ID">
           <el-input v-model="formData.model" placeholder="如 deepseek-v4-pro" />
@@ -65,7 +67,7 @@
         <el-descriptions-item label="名称">{{ viewData.name }}</el-descriptions-item>
         <el-descriptions-item label="模型ID">{{ viewData.model }}</el-descriptions-item>
         <el-descriptions-item label="Base URL">{{ viewData.base_url }}</el-descriptions-item>
-        <el-descriptions-item label="API Key">{{ viewData.api_key }}</el-descriptions-item>
+        <el-descriptions-item label="API Key">{{ maskKey(viewData.api_key) }}</el-descriptions-item>
         <el-descriptions-item label="启用">{{ viewData.is_active ? '是' : '否' }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
@@ -189,6 +191,12 @@ async function handleTestForm() {
   } catch {} finally {
     testing.value = false
   }
+}
+
+function maskKey(key) {
+  if (!key) return ''
+  if (key.length <= 8) return '***' + key.slice(-3)
+  return key.slice(0, 4) + '****' + key.slice(-4)
 }
 
 function formatDateTime(isoStr) {

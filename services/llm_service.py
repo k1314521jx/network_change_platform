@@ -129,7 +129,7 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
     logger.info(f"[LLM] {scene_tag}请求开始(流式) | 模型: {model_id} | base_url: {base_url} | 超时: {LLM_TIMEOUT}s")
     logger.info(f"[LLM] {scene_tag}system_prompt: {len(system_prompt)} 字符 | user_message: {len(user_message)} 字符")
 
-    client = OpenAI(api_key=cfg["api_key"], base_url=base_url, timeout=30.0)
+    client = OpenAI(api_key=cfg["api_key"], base_url=base_url, timeout=300.0)
 
     start_time = time.time()
     try:

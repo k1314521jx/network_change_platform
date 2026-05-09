@@ -252,16 +252,54 @@
             <el-descriptions-item label="文件">{{ humanDetailData.rule_filename || '' }}</el-descriptions-item>
           </el-descriptions>
         </div>
-        <el-collapse v-if="humanDetailData.ai_review" style="margin-bottom: 12px;">
-          <el-collapse-item :title="`AI 审核结果（得分: ${humanDetailData.ai_review.score}）`">
-            <div style="font-size: 13px; color: #606266; white-space: pre-wrap;">{{ humanDetailData.ai_review.summary }}</div>
-          </el-collapse-item>
-        </el-collapse>
+        <!-- AI审核详情 -->
+        <template v-if="humanDetailData.ai_review">
+          <el-collapse style="margin-bottom: 12px;">
+            <el-collapse-item>
+              <template #title>
+                <span style="font-weight: 600;">AI 审核结果</span>
+                <el-tag
+                  size="small"
+                  :type="humanDetailData.ai_review.score >= 80 ? 'success' : humanDetailData.ai_review.score >= 60 ? 'warning' : 'danger'"
+                  style="margin-left: 8px;"
+                >得分: {{ humanDetailData.ai_review.score }}</el-tag>
+              </template>
+              <!-- 维度评分 -->
+              <template v-if="humanDetailData.ai_review.dimensions && humanDetailData.ai_review.dimensions.length">
+                <div class="section-title">维度评分</div>
+                <div class="dimension-grid">
+                  <div v-for="dim in humanDetailData.ai_review.dimensions" :key="dim.name" class="dimension-card" :style="{ borderLeftColor: getDimColor(dim.score) }">
+                    <div class="dim-name">{{ dim.name }}</div>
+                    <div class="dim-score" :style="{ color: getDimColor(dim.score) }">{{ dim.score }}</div>
+                    <div class="dim-comment">{{ dim.comment }}</div>
+                  </div>
+                </div>
+              </template>
+              <!-- 修改建议 -->
+              <template v-if="humanAiSuggestions.length">
+                <div class="section-title">修改建议 ({{ humanAiSuggestions.length }})</div>
+                <el-table :data="humanAiSuggestions" stripe size="small" max-height="250">
+                  <el-table-column prop="table" label="表" width="180" />
+                  <el-table-column prop="row_index" label="行号" width="70" />
+                  <el-table-column prop="field" label="字段" width="120" />
+                  <el-table-column prop="issue" label="问题" />
+                  <el-table-column prop="suggestion" label="建议" />
+                </el-table>
+              </template>
+              <!-- 整体评价 -->
+              <template v-if="humanDetailData.ai_review.summary">
+                <div class="section-title">整体评价</div>
+                <div class="summary-text">{{ humanDetailData.ai_review.summary }}</div>
+              </template>
+            </el-collapse-item>
+          </el-collapse>
+        </template>
         <TripleEditor
           v-if="humanEditData"
           :editData="humanEditData"
           :currentTaskId="humanDetailTaskId"
           :reviewStatus="humanDetailData?.review_status"
+          :violations="humanAiViolations"
           @submit="handleHumanSubmit"
         />
       </template>
@@ -514,8 +552,9 @@ async function openAiDetail(item) {
 async function handleAiRetry(item) {
   try {
     await retryAiReview(item.id)
+    item.status = 'reviewing'
+    item.error_message = null
     ElMessage.success('重试已触发')
-    loadAiTasks()
   } catch {}
 }
 
@@ -552,6 +591,24 @@ const filteredHumanTasks = computed(() => {
   if (humanFilter.value === 'pending_review') return humanTasks.value.filter(t => !t.review_status)
   return humanTasks.value.filter(t => t.review_status === humanFilter.value)
 })
+
+const humanAiSuggestions = computed(() => humanDetailData.value?.ai_review?.suggestions || [])
+
+const humanAiViolations = computed(() => {
+  return humanAiSuggestions.value.map((s, i) => ({
+    rule: i + 1,
+    level: 'AI建议',
+    color: '#E6A23C',
+    message: `${s.issue} → ${s.suggestion}`,
+    locations: [{ table: s.table, row_index: s.row_index, field: s.field }],
+  }))
+})
+
+function getDimColor(score) {
+  if (score >= 80) return '#67C23A'
+  if (score >= 60) return '#E6A23C'
+  return '#F56C6C'
+}
 
 async function loadHumanTasks(silent = false) {
   if (!silent) humanLoading.value = true
@@ -796,4 +853,16 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .violation-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
 .violation-badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
 .violation-msg { font-size: 13px; color: #606266; }
+
+/* AI审核详情（人工审核弹窗内） */
+.section-title { font-weight: 600; margin: 16px 0 8px; color: #303133; }
+.dimension-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.dimension-card {
+  border: 1px solid #EBEEF5; border-radius: 6px; padding: 10px 12px;
+  border-left: 3px solid #67C23A; background: #fafafa;
+}
+.dim-name { font-size: 13px; color: #606266; margin-bottom: 4px; }
+.dim-score { font-size: 22px; font-weight: 700; }
+.dim-comment { font-size: 12px; color: #909399; margin-top: 4px; line-height: 1.5; }
+.summary-text { background: #f5f7fa; padding: 12px; border-radius: 6px; font-size: 13px; color: #606266; line-height: 1.6; }
 </style>

@@ -179,7 +179,7 @@ def retry_ai_review(review_id):
     if ai_review.status != "failed":
         return jsonify({"code": -1, "message": "只能重试失败的审核"}), 400
 
-    ai_review.status = "pending"
+    ai_review.status = "reviewing"
     ai_review.error_message = None
     model = ai_review.model or "deepseek"
     db.session.commit()

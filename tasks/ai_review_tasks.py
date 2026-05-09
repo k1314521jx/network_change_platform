@@ -85,11 +85,18 @@ def run_ai_review(self, review_id: int, triple_task_id: int, model: str = "deeps
             return {"status": "reviewed", "review_id": review_id}
 
         except (APIConnectionError, APITimeoutError, RateLimitError, APIError) as e:
-            # 暂时性错误：状态回退为 pending，由 Celery 自动重试
-            ai_review.status = "pending"
-            ai_review.error_message = f"第{self.request.retries + 1}次重试中: {_friendly_error(e)}"
-            db.session.commit()
-            raise
+            if self.request.retries < self.max_retries:
+                # 还有重试机会：保持 reviewing，等 Celery 自动重试
+                ai_review.status = "reviewing"
+                ai_review.error_message = f"第{self.request.retries + 1}次重试中: {_friendly_error(e)}"
+                db.session.commit()
+                raise
+            else:
+                # 重试已用尽：标记为失败
+                ai_review.status = "failed"
+                ai_review.error_message = f"重试{self.max_retries}次后仍失败: {_friendly_error(e)}"
+                db.session.commit()
+                return {"status": "failed", "error": str(e)}
         except Exception as e:
             ai_review.status = "failed"
             ai_review.error_message = _friendly_error(e)
