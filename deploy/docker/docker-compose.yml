@@ -1,0 +1,99 @@
+services:
+  nginx:
+    build:
+      context: ./nginx
+    ports:
+      - "80:80"
+    depends_on:
+      flask:
+        condition: service_started
+    restart: unless-stopped
+
+  flask:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/flask/Dockerfile
+    environment:
+      - MYSQL_HOST=${MYSQL_HOST}
+      - MYSQL_PORT=${MYSQL_PORT}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NEO4J_HOST=${NEO4J_HOST}
+      - NEO4J_PORT=${NEO4J_PORT}
+      - NEO4J_USER=${NEO4J_USER}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_DATABASE=${NEO4J_DATABASE}
+      - FLASK_DEBUG=${FLASK_DEBUG}
+    depends_on:
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+      neo4j:
+        condition: service_started
+    volumes:
+      - ../../uploads:/app/uploads
+      - ../../logs:/app/logs
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/flask/Dockerfile
+    command: celery
+    environment:
+      - MYSQL_HOST=${MYSQL_HOST}
+      - MYSQL_PORT=${MYSQL_PORT}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NEO4J_HOST=${NEO4J_HOST}
+      - NEO4J_PORT=${NEO4J_PORT}
+      - NEO4J_USER=${NEO4J_USER}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_DATABASE=${NEO4J_DATABASE}
+      - FLASK_DEBUG=${FLASK_DEBUG}
+    depends_on:
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+    volumes:
+      - ../../logs:/app/logs
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_CHARSET=utf8mb4
+      - MYSQL_COLLATION=utf8mb4_unicode_ci
+      - LANG=C.UTF-8
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  neo4j_data:
