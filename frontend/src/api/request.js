@@ -38,6 +38,15 @@ service.interceptors.response.use(
     return res
   },
   (error) => {
+    // 401 未登录 → 清除状态并跳转登录页
+    if (error.response?.status === 401) {
+      localStorage.removeItem('loggedIn')
+      localStorage.removeItem('username')
+      if (window.location.hash !== '#/login' && window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+      return Promise.reject(error)
+    }
     // blob 请求的错误响应需要先读取 blob 内容再解析 JSON
     if (error.config?.responseType === 'blob' && error.response?.data instanceof Blob) {
       const reader = new FileReader()

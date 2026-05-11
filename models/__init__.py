@@ -2,3 +2,4 @@ from .models import db, now_cn, RuleTask, TripleTask, TripleReview, Neo4jImportL
 from .prompt_model import PromptConfig
 from .model_config import ModelConfig
 from .rule_validation import RuleValidation
+from .user_model import User

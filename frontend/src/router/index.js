@@ -3,6 +3,12 @@ import MainLayout from '@/layouts/MainLayout.vue'
 
 const routes = [
   {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/Login.vue'),
+    meta: { title: '登录', public: true },
+  },
+  {
     path: '/',
     component: MainLayout,
     redirect: '/module-a',
@@ -54,6 +60,12 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   document.title = to.meta.title || '网络变更方案智能化处理平台'
+
+  if (to.meta.public) return true
+
+  if (!localStorage.getItem('loggedIn')) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
 })
 
 export default router

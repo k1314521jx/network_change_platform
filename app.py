@@ -3,7 +3,7 @@ import os
 import traceback
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, session, request
 from flask_cors import CORS
 
 from config import SQLALCHEMY_DATABASE_URI, FLASK_HOST, FLASK_PORT, FLASK_DEBUG, UPLOAD_FOLDER, MAX_CONTENT_LENGTH
@@ -68,8 +68,15 @@ def create_app():
 
     _setup_flask_logging(app)
 
-    CORS(app)
+    CORS(app, supports_credentials=True)
     db.init_app(app)
+
+    # 全局登录校验（/api/auth/ 除外）
+    @app.before_request
+    def check_auth():
+        if request.path.startswith("/api/") and not request.path.startswith("/api/auth/"):
+            if "user_id" not in session:
+                return jsonify({"code": 401, "message": "未登录"}), 401
 
     # 全局异常捕获：记录详细 traceback
     @app.errorhandler(Exception)
@@ -82,6 +89,7 @@ def create_app():
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
     # Register blueprints
+    from api.auth_api import auth_bp
     from api.rule_api import rule_bp
     from api.triple_api import triple_bp
     from api.review_api import review_bp
@@ -92,6 +100,7 @@ def create_app():
     from api.rule_validation_api import rule_validation_bp
     from api.graph_api import graph_bp
 
+    app.register_blueprint(auth_bp)
     app.register_blueprint(rule_bp)
     app.register_blueprint(triple_bp)
     app.register_blueprint(review_bp)
@@ -110,11 +119,13 @@ def create_app():
             return send_from_directory(app.static_folder, path)
         return send_from_directory(app.static_folder, "index.html")
 
-    # Create tables + seed builtin prompts
+    # Create tables + seed builtin prompts + admin user
     with app.app_context():
         db.create_all()
         from services.prompt_service import seed_builtin_prompts
         seed_builtin_prompts()
+        from api.auth_api import seed_admin_user
+        seed_admin_user()
 
     return app
 

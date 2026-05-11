@@ -47,6 +47,10 @@
           <Expand v-else />
         </el-icon>
         <span class="header-title">网络变更方案智能化处理平台</span>
+        <div class="header-right">
+          <span class="header-user">{{ username }}</span>
+          <el-button link type="danger" size="small" @click="handleLogout">退出</el-button>
+        </div>
       </el-header>
       <el-main class="main-content">
         <router-view />
@@ -57,11 +61,21 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { logout } from '@/api/auth'
 
 const route = useRoute()
+const router = useRouter()
 const isCollapsed = ref(false)
 const activeMenu = computed(() => route.path)
+const username = computed(() => localStorage.getItem('username') || '')
+
+async function handleLogout() {
+  try { await logout() } catch {}
+  localStorage.removeItem('loggedIn')
+  localStorage.removeItem('username')
+  router.push('/login')
+}
 </script>
 
 <style scoped>
@@ -108,6 +122,16 @@ const activeMenu = computed(() => route.path)
   font-size: 16px;
   font-weight: 500;
   color: #303133;
+}
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-user {
+  font-size: 13px;
+  color: #606266;
 }
 .main-content {
   background: #f0f2f5;
