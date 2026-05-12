@@ -6,7 +6,7 @@
           :connected="connected"
           :selected-ids="selectedIds"
           :importing="importing"
-          @import="doImport"
+          @import="(force) => doImport(force)"
         />
         <ApprovedCheckList v-model="selectedIds" style="margin-top: 16px;" />
       </el-col>
@@ -39,14 +39,14 @@ onMounted(async () => {
   }
 })
 
-async function doImport() {
+async function doImport(force = false) {
   if (!selectedIds.value.length) {
     ElMessage.warning('请选择要入库的审核记录')
     return
   }
   importing.value = true
   try {
-    const res = await importToNeo4j({ review_ids: selectedIds.value })
+    const res = await importToNeo4j({ review_ids: selectedIds.value, force })
     ElMessage.success(res.message)
     selectedIds.value = []
     logTable.value?.refresh()

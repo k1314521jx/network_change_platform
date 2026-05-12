@@ -13,6 +13,7 @@ def import_to_neo4j():
         return jsonify({"code": -1, "message": "请选择要入库的审核记录"}), 400
 
     review_ids = data["review_ids"]
+    force = data.get("force", False)
     if not isinstance(review_ids, list) or len(review_ids) == 0:
         return jsonify({"code": -1, "message": "请选择至少一条审核记录"}), 400
 
@@ -31,26 +32,35 @@ def import_to_neo4j():
             })
             continue
 
-        # 检查是否已成功入库
-        existing_log = Neo4jImportLog.query.filter_by(
-            triple_review_id=review_id, status="success"
-        ).first()
-        if existing_log:
-            results.append({
-                "review_id": review_id,
-                "status": "failed",
-                "error": "该记录已成功入库，请勿重复导入"
-            })
-            continue
+        # 检查是否已成功入库（force 模式跳过此检查）
+        if not force:
+            existing_log = Neo4jImportLog.query.filter_by(
+                triple_review_id=review_id, status="success"
+            ).first()
+            if existing_log:
+                results.append({
+                    "review_id": review_id,
+                    "status": "failed",
+                    "error": "该记录已成功入库，请勿重复导入"
+                })
+                continue
 
         try:
             count = import_triples_to_neo4j(review.reviewed_json)
-            log = Neo4jImportLog(
-                triple_review_id=review_id,
-                status="success",
-                error_message="",
-            )
-            db.session.add(log)
+            # force 模式下更新旧日志，否则新建
+            existing_log = Neo4jImportLog.query.filter_by(
+                triple_review_id=review_id, status="success"
+            ).first()
+            if existing_log:
+                existing_log.status = "success"
+                existing_log.error_message = ""
+            else:
+                log = Neo4jImportLog(
+                    triple_review_id=review_id,
+                    status="success",
+                    error_message="",
+                )
+                db.session.add(log)
             db.session.commit()
             results.append({
                 "review_id": review_id,

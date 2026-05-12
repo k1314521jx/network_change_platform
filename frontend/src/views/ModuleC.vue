@@ -164,7 +164,8 @@
               <div class="card-row"><span class="card-label">文件:</span> {{ item.rule_filename }}</div>
             </div>
             <div class="card-actions">
-              <el-button link type="primary" size="small" @click="openHumanDetail(item)">审核</el-button>
+              <el-button v-if="item.review_status !== 'approved'" link type="primary" size="small" @click="openHumanDetail(item)">审核</el-button>
+              <el-button v-else link type="primary" size="small" @click="openHumanDetail(item)">详情</el-button>
             </div>
           </div>
         </div>
@@ -314,11 +315,15 @@
           :editData="humanEditData"
           :currentTaskId="humanDetailTaskId"
           :reviewStatus="humanDetailData?.review_status"
+          :isReadonly="humanDetailData?.review_status === 'approved'"
           :violations="humanAiViolations"
           @submit="handleHumanSubmit"
         />
       </template>
     </el-dialog>
+
+    <!-- 审核人签名弹窗 -->
+    <ReviewerDialog v-model="reviewerVisible" @confirm="onReviewerConfirm" />
   </div>
 </template>
 
@@ -337,6 +342,7 @@ import EditableSheetTable from '@/components/module-c/EditableSheetTable.vue'
 import JsonPreview from '@/components/common/JsonPreview.vue'
 import AiReviewDetailDialog from '@/components/module-c/AiReviewDetailDialog.vue'
 import TripleEditor from '@/components/module-c/TripleEditor.vue'
+import ReviewerDialog from '@/components/module-c/ReviewerDialog.vue'
 
 // ---- 状态映射 ----
 const ruleStatusMap = {
@@ -648,6 +654,8 @@ const humanDetailFullscreen = ref(false)
 const humanDetailTaskId = ref(null)
 const humanDetailData = ref(null)
 const humanEditData = ref(null)
+const reviewerVisible = ref(false)
+const pendingReviewStatus = ref(null)
 
 const filteredHumanTasks = computed(() => {
   if (humanFilter.value === 'all') return humanTasks.value
@@ -698,14 +706,19 @@ async function openHumanDetail(item) {
   } catch {}
 }
 
-async function handleHumanSubmit(reviewStatus) {
+function handleHumanSubmit(reviewStatus) {
+  pendingReviewStatus.value = reviewStatus
+  reviewerVisible.value = true
+}
+
+async function onReviewerConfirm(reviewer) {
   try {
     await submitReview(humanDetailTaskId.value, {
       table1: humanEditData.value.table1,
       table2: humanEditData.value.table2,
       table3: humanEditData.value.table3,
-      review_status: reviewStatus,
-      reviewer: '',
+      review_status: pendingReviewStatus.value,
+      reviewer,
     })
     ElMessage.success('审核提交成功')
     humanDetailVisible.value = false

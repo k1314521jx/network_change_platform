@@ -14,24 +14,45 @@
     </div>
     <el-button
       type="primary"
-      :loading="importing"
-      :disabled="!connected || !selectedIds.length"
+      :loading="importing && !reImporting"
+      :disabled="!connected || !selectedIds.length || reImporting"
       @click="emit('import')"
       style="width: 100%; margin-top: 16px;"
     >
       <el-icon><Promotion /></el-icon>
       批量入库 ({{ selectedIds.length }})
     </el-button>
+    <el-button
+      :loading="reImporting"
+      :disabled="!connected || !selectedIds.length || importing"
+      @click="handleReImport"
+      style="width: 100%; margin-top: 8px;"
+    >
+      重新入库 ({{ selectedIds.length }})
+    </el-button>
   </el-card>
 </template>
 
 <script setup>
-defineProps({
+import { ref, watch } from 'vue'
+
+const props = defineProps({
   connected: { type: [Boolean, null], default: null },
   selectedIds: { type: Array, default: () => [] },
   importing: { type: Boolean, default: false },
 })
 const emit = defineEmits(['import'])
+
+const reImporting = ref(false)
+
+watch(() => props.importing, (val) => {
+  if (!val) reImporting.value = false
+})
+
+function handleReImport() {
+  reImporting.value = true
+  emit('import', true)
+}
 </script>
 
 <style scoped>

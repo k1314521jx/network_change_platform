@@ -22,12 +22,7 @@ def _get_ai_review_context(triple_task_id: int) -> dict | None:
 
 @review_bp.route("/api/review/list", methods=["GET"])
 def list_pending_reviews():
-    """获取待人工审核列表：已通过AI审核且尚未人工审核通过的"""
-    # 查询已审核通过的 triple_task_id
-    approved_ids = db.session.query(TripleReview.triple_task_id).filter(
-        TripleReview.review_status == "approved"
-    )
-
+    """获取人工审核列表：已通过AI审核的三元组任务（含全部/通过/驳回状态）"""
     # 查询已通过规则验证的 triple_task_id
     rule_passed_ids = db.session.query(RuleValidation.triple_task_id).filter(
         RuleValidation.status == "passed"
@@ -42,7 +37,6 @@ def list_pending_reviews():
         TripleTask.status == "success",
         TripleTask.id.in_(rule_passed_ids),
         TripleTask.id.in_(ai_reviewed_ids),
-        TripleTask.id.notin_(approved_ids),
     ).order_by(TripleTask.created_at.desc())
 
     tasks = query.all()

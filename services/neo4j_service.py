@@ -59,13 +59,15 @@ def import_triples_to_neo4j(reviewed_json: dict) -> int:
 
             session.run(
                 f"""
-                MATCH (a:{src_label.replace(' ', '_')} {{id: $src_id}})
-                MATCH (b:{tgt_label.replace(' ', '_')} {{id: $tgt_id}})
+                MATCH (a:{src_label.replace(' ', '_')})
+                WHERE a.id = $src_val OR a.name = $src_val
+                MATCH (b:{tgt_label.replace(' ', '_')})
+                WHERE b.id = $tgt_val OR b.name = $tgt_val
                 MERGE (a)-[r:{safe_rel_type}]->(b)
                 SET r.attributes = $attrs
                 """,
-                src_id=src_id.strip(),
-                tgt_id=tgt_id.strip(),
+                src_val=src_id.strip(),
+                tgt_val=tgt_id.strip(),
                 attrs=rel_attrs,
             )
 
