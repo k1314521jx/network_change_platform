@@ -9,7 +9,9 @@ from services.model_service import get_model_config_by_name, get_first_active_mo
 
 logger = logging.getLogger("llm_service")
 
-LLM_TIMEOUT = 3600  # 秒
+LLM_TIMEOUT = 3600  # 总耗时上限（秒）
+FIRST_CHUNK_TIMEOUT = 60  # 首包超时（秒）：首个 chunk 最长等待时间
+NO_DATA_TIMEOUT = 120  # 无数据超时（秒）：流式中连续无内容最长等待时间
 
 EXCEPTION_MAP = {
     APITimeoutError: "请求超时: LLM API 在 {timeout}s 内未响应, 模型={model}, base_url={base_url}",
@@ -152,16 +154,28 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
     thinking_chunks = []
     finish_reason = None
     usage = None
+    first_chunk_received = False
+    last_content_time = time.time()  # 上次收到有意义内容的时间
 
     try:
         for chunk in stream:
             elapsed = time.time() - start_time
+
+            # 首包超时检测
+            if not first_chunk_received:
+                if elapsed > FIRST_CHUNK_TIMEOUT:
+                    logger.error(f"[LLM] {scene_tag}首包超时({round(elapsed)}s > {FIRST_CHUNK_TIMEOUT}s)，API 可能无响应或鉴权失败")
+                    raise TimeoutError(f"LLM 首包超时({FIRST_CHUNK_TIMEOUT}s)，API 可能无响应或鉴权失败")
+                first_chunk_received = True
+
+            # 总耗时检测
             if elapsed > LLM_TIMEOUT:
                 logger.error(f"[LLM] {scene_tag}总耗时超限({round(elapsed)}s > {LLM_TIMEOUT}s)，强制中断")
                 raise TimeoutError(f"LLM 总耗时超限({LLM_TIMEOUT}s)")
 
+            # 无数据超时检测：长时间没收到有意义内容
+            has_meaningful_data = False
             if not chunk.choices:
-                # 最后一个 chunk 可能只有 usage，没有 choices
                 if hasattr(chunk, 'usage') and chunk.usage:
                     usage = chunk.usage
                 continue
@@ -169,11 +183,19 @@ def call_llm(system_prompt: str, user_message: str, model_name: str = None, task
             delta = chunk.choices[0].delta
             if delta.content:
                 content_chunks.append(delta.content)
+                has_meaningful_data = True
 
             # 捕获思考过程流式 chunk
             thinking_delta = getattr(delta, 'reasoning_content', None) or getattr(delta, 'thinking', None)
             if thinking_delta:
                 thinking_chunks.append(thinking_delta)
+                has_meaningful_data = True
+
+            if has_meaningful_data:
+                last_content_time = time.time()
+            elif time.time() - last_content_time > NO_DATA_TIMEOUT:
+                logger.error(f"[LLM] {scene_tag}无数据超时(>{NO_DATA_TIMEOUT}s 未收到内容)，可能服务异常")
+                raise TimeoutError(f"LLM 无数据超时({NO_DATA_TIMEOUT}s)，可能服务异常")
 
             if chunk.choices[0].finish_reason:
                 finish_reason = chunk.choices[0].finish_reason

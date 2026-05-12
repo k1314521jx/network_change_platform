@@ -8,6 +8,13 @@ from services.prompt_templates import SYSTEM_PROMPT, INPUT_SCHEMA_DOC
 
 def _friendly_error(exc: Exception) -> str:
     """将后端异常转换为用户可读的简要错误描述"""
+    if isinstance(exc, TimeoutError):
+        msg = str(exc)
+        if "首包超时" in msg:
+            return "LLM 服务无响应，请检查模型权限或 API Key 配置"
+        if "无数据超时" in msg:
+            return "LLM 服务长时间未返回内容，请稍后重试"
+        return "LLM 请求超时，请稍后重试"
     if isinstance(exc, APITimeoutError):
         return "LLM 请求超时，请稍后重试"
     if isinstance(exc, APIConnectionError):
