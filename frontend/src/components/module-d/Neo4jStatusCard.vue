@@ -1,62 +1,50 @@
 <template>
-  <el-card shadow="hover">
-    <template #header>
-      <div class="card-header">
-        <el-icon><Connection /></el-icon>
-        <span>Neo4j 入库</span>
-      </div>
-    </template>
-    <div class="status-row">
-      <span class="status-label">连接状态：</span>
-      <el-tag v-if="connected === true" type="success" size="small">已连接</el-tag>
-      <el-tag v-else-if="connected === false" type="danger" size="small">未连接</el-tag>
-      <el-tag v-else type="warning" size="small">检测中...</el-tag>
+  <div class="neo4j-status-bar">
+    <div class="status-left">
+      <el-icon :size="18"><Connection /></el-icon>
+      <span class="status-title">Neo4j 图数据库</span>
+      <el-divider direction="vertical" />
+      <span class="status-label">连接状态</span>
+      <el-tag v-if="connected === true" type="success" size="small" effect="dark">已连接</el-tag>
+      <el-tag v-else-if="connected === false" type="danger" size="small" effect="dark">未连接</el-tag>
+      <el-tag v-else type="warning" size="small" effect="dark">检测中...</el-tag>
     </div>
-    <el-button
-      type="primary"
-      :loading="importing && !reImporting"
-      :disabled="!connected || !selectedIds.length || reImporting"
-      @click="emit('import')"
-      style="width: 100%; margin-top: 16px;"
-    >
-      <el-icon><Promotion /></el-icon>
-      批量入库 ({{ selectedIds.length }})
+    <el-button type="primary" :disabled="!connected" @click="emit('select')">
+      <el-icon><FolderOpened /></el-icon>
+      选择数据
     </el-button>
-    <el-button
-      :loading="reImporting"
-      :disabled="!connected || !selectedIds.length || importing"
-      @click="handleReImport"
-      style="width: 100%; margin-top: 8px;"
-    >
-      重新入库 ({{ selectedIds.length }})
-    </el-button>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-
-const props = defineProps({
+defineProps({
   connected: { type: [Boolean, null], default: null },
-  selectedIds: { type: Array, default: () => [] },
-  importing: { type: Boolean, default: false },
 })
-const emit = defineEmits(['import'])
-
-const reImporting = ref(false)
-
-watch(() => props.importing, (val) => {
-  if (!val) reImporting.value = false
-})
-
-function handleReImport() {
-  reImporting.value = true
-  emit('import', true)
-}
+const emit = defineEmits(['select'])
 </script>
 
 <style scoped>
-.card-header { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.status-row { display: flex; align-items: center; }
-.status-label { color: #606266; }
+.neo4j-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+.status-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.status-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: #303133;
+}
+.status-label {
+  color: #909399;
+  font-size: 13px;
+}
 </style>

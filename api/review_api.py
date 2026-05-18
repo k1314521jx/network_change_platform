@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, TripleTask, TripleReview, AiReview, RuleValidation, now_cn
+from models import db, TripleTask, TripleReview, AiReview, Neo4jImportLog, RuleValidation, now_cn
 
 review_bp = Blueprint("review", __name__)
 
@@ -142,12 +142,18 @@ def list_approved_reviews():
     reviews = TripleReview.query.filter_by(review_status="approved").order_by(TripleReview.review_time.desc()).all()
     items = []
     for r in reviews:
+        rule_task = r.triple_task.rule_task if r.triple_task else None
+        imported_log = Neo4jImportLog.query.filter_by(
+            triple_review_id=r.id, status="success"
+        ).first()
         items.append({
             "id": r.id,
             "triple_task_id": r.triple_task_id,
+            "file_name": rule_task.filename if rule_task else "",
             "reviewer": r.reviewer,
             "review_time": r.review_time.isoformat() if r.review_time else None,
             "created_at": r.created_at.isoformat() if r.created_at else None,
+            "imported": imported_log is not None,
         })
     return jsonify({"code": 0, "data": items})
 

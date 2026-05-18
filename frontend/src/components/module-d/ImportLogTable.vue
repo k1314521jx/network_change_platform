@@ -2,27 +2,37 @@
   <el-card shadow="hover">
     <template #header>
       <div class="card-header">
-        <span class="card-title">入库日志</span>
+        <span class="card-title">入库记录</span>
         <el-button :icon="Refresh" size="small" @click="load" :loading="loading">刷新</el-button>
       </div>
     </template>
-    <el-table :data="items" stripe style="width: 100%" v-loading="loading" size="small" empty-text="暂无日志">
+    <el-table :data="items" stripe style="width: 100%" v-loading="loading" size="small" empty-text="暂无入库记录">
       <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column prop="triple_review_id" label="审核ID" width="90" />
-      <el-table-column label="状态" width="80">
+      <el-table-column prop="triple_review_id" label="审核ID" width="80" />
+      <el-table-column prop="file_name" label="文件名称" min-width="180" show-overflow-tooltip />
+      <el-table-column prop="reviewer" label="审核人" width="100" />
+      <el-table-column label="状态" width="80" align="center">
         <template #default="{ row }">
           <el-tag :type="row.status === 'success' ? 'success' : 'danger'" size="small">
             {{ row.status === 'success' ? '成功' : '失败' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="error_message" label="错误信息" show-overflow-tooltip />
+      <el-table-column prop="error_message" label="错误信息" min-width="150" show-overflow-tooltip />
       <el-table-column label="导入时间" width="160">
         <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
       </el-table-column>
     </el-table>
     <div class="pagination-wrap">
-      <el-pagination v-model:current-page="page" :page-size="perPage" :total="total" layout="total, prev, pager, next" background small @current-change="handlePageChange" />
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="perPage"
+        :total="total"
+        layout="total, prev, pager, next"
+        background
+        small
+        @current-change="handlePageChange"
+      />
     </div>
   </el-card>
 </template>

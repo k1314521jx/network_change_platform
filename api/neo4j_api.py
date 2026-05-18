@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, TripleReview, Neo4jImportLog
+from models import db, TripleReview, Neo4jImportLog, TripleTask
 from services.neo4j_service import import_triples_to_neo4j, test_neo4j_connection
 
 neo4j_bp = Blueprint("neo4j", __name__)
@@ -102,9 +102,16 @@ def list_import_logs():
 
     items = []
     for log in pagination.items:
+        review = log.triple_review
+        reviewer = review.reviewer if review else ""
+        file_name = ""
+        if review and review.triple_task and review.triple_task.rule_task:
+            file_name = review.triple_task.rule_task.filename
         items.append({
             "id": log.id,
             "triple_review_id": log.triple_review_id,
+            "file_name": file_name,
+            "reviewer": reviewer,
             "status": log.status,
             "error_message": log.error_message,
             "created_at": log.created_at.isoformat() if log.created_at else None,
