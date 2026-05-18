@@ -108,7 +108,7 @@ function handleClearPath() {
   overflow-x: hidden;
 }
 .module-f-right {
-  flex: 4;
+  flex: 5;
   min-width: 0;
   position: sticky;
   top: 0;

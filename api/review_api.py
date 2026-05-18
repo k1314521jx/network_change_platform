@@ -13,6 +13,7 @@ def _get_ai_review_context(triple_task_id: int) -> dict | None:
         return None
     return {
         "id": ai_review.id,
+        "model": ai_review.model,
         "score": ai_review.score,
         "summary": ai_review.summary,
         "suggestions": ai_review.suggestions,
@@ -44,10 +45,14 @@ def list_pending_reviews():
     for t in tasks:
         # 检查是否有待审核或驳回的记录
         existing_review = TripleReview.query.filter_by(triple_task_id=t.id).order_by(TripleReview.created_at.desc()).first()
+        # 获取AI审核模型
+        ai_review = AiReview.query.filter_by(triple_task_id=t.id, status="reviewed").order_by(AiReview.created_at.desc()).first()
         items.append({
             "id": t.id,
             "rule_task_id": t.rule_task_id,
             "rule_filename": t.rule_task.filename if t.rule_task else "",
+            "triple_model": t.model,
+            "review_model": ai_review.model if ai_review else "",
             "status": t.status,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "review_status": existing_review.review_status if existing_review else None,
@@ -78,6 +83,7 @@ def get_review_data(triple_task_id):
         "code": 0,
         "data": {
             "triple_task_id": triple_task_id,
+            "triple_model": triple_task.model,
             "table1": data.get("Table1_Alignment", []),
             "table2": data.get("Table2_Entities_Attributes", []),
             "table3": data.get("Table3_Relations", []),

@@ -137,7 +137,8 @@
                 <span class="card-label">得分:</span>
                 <span :style="{ color: getScoreColor(item.score), fontWeight: 600 }">{{ item.score }}</span>
               </div>
-              <div class="card-row"><span class="card-label">模型:</span> {{ item.model }}</div>
+              <div class="card-row"><span class="card-label">生成模型:</span> {{ item.triple_model || '-' }}</div>
+              <div class="card-row"><span class="card-label">审核模型:</span> {{ item.model || '-' }}</div>
             </div>
             <div class="card-actions">
               <el-button link type="primary" size="small" @click="openAiDetail(item)">详情</el-button>
@@ -183,6 +184,8 @@
             </div>
             <div class="card-info">
               <div class="card-row"><span class="card-label">文件:</span> {{ item.rule_filename }}</div>
+              <div class="card-row"><span class="card-label">生成模型:</span> {{ item.triple_model || '-' }}</div>
+              <div class="card-row"><span class="card-label">审核模型:</span> {{ item.review_model || '-' }}</div>
             </div>
             <div class="card-actions">
               <el-button v-if="item.review_status !== 'approved'" link type="primary" size="small" @click="openHumanDetail(item)">审核</el-button>
@@ -284,9 +287,10 @@
       </template>
       <template v-if="humanDetailData">
         <div style="margin-bottom: 12px;">
-          <el-descriptions :column="2" border size="small">
+          <el-descriptions :column="3" border size="small">
             <el-descriptions-item label="任务ID">{{ humanDetailTaskId }}</el-descriptions-item>
             <el-descriptions-item label="文件">{{ humanDetailData.rule_filename || '' }}</el-descriptions-item>
+            <el-descriptions-item label="审核模型">{{ humanDetailData.ai_review?.model || '-' }}</el-descriptions-item>
           </el-descriptions>
         </div>
         <!-- AI审核详情 -->
