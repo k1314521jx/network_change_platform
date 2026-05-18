@@ -2,7 +2,7 @@
   <el-card shadow="hover">
     <template #header>
       <div class="card-header">
-        <span class="card-title">三元组任务列表</span>
+        <span class="card-title">图谱生成任务列表</span>
         <div class="header-actions">
           <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 110px" @change="handleFilterChange">
             <el-option label="全部" value="" />

@@ -22,7 +22,7 @@
       >
         <el-button type="primary" :icon="FolderOpened">选择文件</el-button>
       </el-upload>
-      <span class="upload-tip">支持 .xlsx / .xls 格式，最多 10 个文件</span>
+      <span class="upload-tip">支持 .xlsx / .xls 格式，最多 30 个文件</span>
     </div>
 
     <el-table

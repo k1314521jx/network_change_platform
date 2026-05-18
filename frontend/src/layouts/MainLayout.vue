@@ -18,27 +18,27 @@
           <el-icon><DataAnalysis /></el-icon>
           <template #title>数据看板</template>
         </el-menu-item>
-        <el-menu-item index="/module-a">
+        <el-menu-item index="/rule-extract">
           <el-icon><Upload /></el-icon>
           <template #title>方案规则化</template>
         </el-menu-item>
-        <el-menu-item index="/module-b">
+        <el-menu-item index="/triple-convert">
           <el-icon><Cpu /></el-icon>
           <template #title>图谱生成</template>
         </el-menu-item>
-        <el-menu-item index="/module-c">
+        <el-menu-item index="/triple-review">
           <el-icon><CircleCheck /></el-icon>
           <template #title>图谱审核</template>
         </el-menu-item>
-        <el-menu-item index="/module-d">
+        <el-menu-item index="/neo4j-import">
           <el-icon><Coin /></el-icon>
           <template #title>图谱入库</template>
         </el-menu-item>
-        <el-menu-item index="/module-f">
+        <el-menu-item index="/graph-view">
           <el-icon><Share /></el-icon>
           <template #title>关系图谱</template>
         </el-menu-item>
-        <el-menu-item index="/module-e">
+        <el-menu-item index="/settings">
           <el-icon><Tools /></el-icon>
           <template #title>配置中心</template>
         </el-menu-item>
