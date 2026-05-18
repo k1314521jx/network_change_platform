@@ -4,10 +4,11 @@ import request from './request'
  * 获取待审核列表
  * @returns {Promise}
  */
-export function getPendingList() {
+export function getPendingList(params) {
   return request({
     url: '/api/review/list',
     method: 'get',
+    params,
   })
 }
 

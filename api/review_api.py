@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from models import db, TripleTask, TripleReview, AiReview, Neo4jImportLog, RuleValidation, now_cn
+from sqlalchemy.orm import joinedload
 
 review_bp = Blueprint("review", __name__)
 
@@ -24,6 +25,9 @@ def _get_ai_review_context(triple_task_id: int) -> dict | None:
 @review_bp.route("/api/review/list", methods=["GET"])
 def list_pending_reviews():
     """获取人工审核列表：已通过AI审核的三元组任务（含全部/通过/驳回状态）"""
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 15, type=int)
+
     # 查询已通过规则验证的 triple_task_id
     rule_passed_ids = db.session.query(RuleValidation.triple_task_id).filter(
         RuleValidation.status == "passed"
@@ -38,15 +42,26 @@ def list_pending_reviews():
         TripleTask.status == "success",
         TripleTask.id.in_(rule_passed_ids),
         TripleTask.id.in_(ai_reviewed_ids),
+    ).options(
+        joinedload(TripleTask.rule_task)
     ).order_by(TripleTask.created_at.desc())
 
-    tasks = query.all()
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    # 批量查询关联数据，消除 N+1
+    task_ids = [t.id for t in pagination.items]
+    review_map = {}
+    ai_review_map = {}
+    if task_ids:
+        for r in TripleReview.query.filter(TripleReview.triple_task_id.in_(task_ids)).order_by(TripleReview.created_at.desc()).all():
+            review_map.setdefault(r.triple_task_id, r)
+        for ar in AiReview.query.filter(AiReview.triple_task_id.in_(task_ids), AiReview.status == "reviewed").all():
+            ai_review_map.setdefault(ar.triple_task_id, ar)
+
     items = []
-    for t in tasks:
-        # 检查是否有待审核或驳回的记录
-        existing_review = TripleReview.query.filter_by(triple_task_id=t.id).order_by(TripleReview.created_at.desc()).first()
-        # 获取AI审核模型
-        ai_review = AiReview.query.filter_by(triple_task_id=t.id, status="reviewed").order_by(AiReview.created_at.desc()).first()
+    for t in pagination.items:
+        existing_review = review_map.get(t.id)
+        ai_review = ai_review_map.get(t.id)
         items.append({
             "id": t.id,
             "rule_task_id": t.rule_task_id,
@@ -59,7 +74,15 @@ def list_pending_reviews():
             "review_id": existing_review.id if existing_review else None,
         })
 
-    return jsonify({"code": 0, "data": items})
+    return jsonify({
+        "code": 0,
+        "data": {
+            "items": items,
+            "total": pagination.total,
+            "page": page,
+            "per_page": per_page,
+        }
+    })
 
 
 @review_bp.route("/api/review/<int:triple_task_id>", methods=["GET"])

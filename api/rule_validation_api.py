@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, Response
 from models import db, TripleTask, RuleValidation
 from services.xlsx_handler import export_triple_to_xlsx, import_xlsx_to_triple
 from datetime import datetime
+from sqlalchemy.orm import joinedload
 
 rule_validation_bp = Blueprint("rule_validation", __name__)
 
@@ -12,10 +13,12 @@ def list_rule_validations():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 15, type=int)
 
-    # 查询所有成功的 TripleTask，LEFT JOIN RuleValidation
+    # 查询所有成功的 TripleTask，LEFT JOIN RuleValidation，预加载 rule_task 消除 N+1
     query = db.session.query(TripleTask, RuleValidation).outerjoin(
         RuleValidation, TripleTask.id == RuleValidation.triple_task_id
-    ).filter(TripleTask.status == "success").order_by(TripleTask.created_at.desc())
+    ).filter(TripleTask.status == "success").options(
+        joinedload(TripleTask.rule_task)
+    ).order_by(TripleTask.created_at.desc())
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 

@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, Response
 from models import db, TripleTask, AiReview, RuleValidation
+from sqlalchemy.orm import joinedload
 
 ai_review_bp = Blueprint("ai_review", __name__)
 
@@ -53,7 +54,9 @@ def list_ai_reviews():
     per_page = request.args.get("per_page", 15, type=int)
     status_filter = request.args.get("status", "").strip()
 
-    query = AiReview.query
+    query = AiReview.query.options(
+        joinedload(AiReview.triple_task).joinedload(TripleTask.rule_task)
+    )
     if status_filter:
         query = query.filter(AiReview.status == status_filter)
     query = query.order_by(AiReview.created_at.desc())

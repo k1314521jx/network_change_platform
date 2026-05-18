@@ -37,8 +37,15 @@
             class="filter-tag" :class="{ active: ruleFilter === f.value }"
             @click="ruleFilter = f.value"
           >{{ f.label }}</span>
+          <el-checkbox
+            class="select-all-check"
+            :model-value="ruleSelectAllChecked"
+            :indeterminate="ruleSelectAllIndeterminate"
+            @change="toggleRuleSelectAll"
+            size="small"
+          >全选</el-checkbox>
         </div>
-        <div class="col-body" v-loading="ruleLoading">
+        <div class="col-body" v-loading="ruleList.loading" @scroll="ruleList.handleScroll">
           <div v-if="!filteredRuleTasks.length" class="empty-tip">暂无数据</div>
           <div
             v-for="item in filteredRuleTasks"
@@ -49,6 +56,7 @@
           >
             <div class="card-top">
               <el-checkbox
+                v-if="item.status !== 'passed'"
                 :model-value="selectedRuleIds.includes(item.id)"
                 @change="toggleRuleSelect(item)"
                 @click.stop
@@ -78,10 +86,10 @@
               >原始验证</el-button>
             </div>
           </div>
+          <div v-if="ruleList.loadingMore" class="load-more-tip">加载中...</div>
+          <div v-else-if="!ruleList.hasMore && filteredRuleTasks.length" class="load-more-tip">没有更多数据</div>
         </div>
       </div>
-
-      <!-- 列间箭头 -->
       <div class="col-divider"><span class="divider-arrow">›</span></div>
 
       <!-- 列2：AI审核 -->
@@ -107,8 +115,15 @@
             class="filter-tag" :class="{ active: aiFilter === f.value }"
             @click="aiFilter = f.value"
           >{{ f.label }}</span>
+          <el-checkbox
+            class="select-all-check"
+            :model-value="aiSelectAllChecked"
+            :indeterminate="aiSelectAllIndeterminate"
+            @change="toggleAiSelectAll"
+            size="small"
+          >全选</el-checkbox>
         </div>
-        <div class="col-body" v-loading="aiLoading">
+        <div class="col-body" v-loading="aiList.loading" @scroll="aiList.handleScroll">
           <div v-if="!filteredAiTasks.length" class="empty-tip">暂无数据</div>
           <div
             v-for="item in filteredAiTasks"
@@ -154,6 +169,8 @@
               >审核</el-button>
             </div>
           </div>
+          <div v-if="aiList.loadingMore" class="load-more-tip">加载中...</div>
+          <div v-else-if="!aiList.hasMore && filteredAiTasks.length" class="load-more-tip">没有更多数据</div>
         </div>
       </div>
 
@@ -173,7 +190,7 @@
             @click="humanFilter = f.value"
           >{{ f.label }}</span>
         </div>
-        <div class="col-body" v-loading="humanLoading">
+        <div class="col-body" v-loading="humanList.loading" @scroll="humanList.handleScroll">
           <div v-if="!filteredHumanTasks.length" class="empty-tip">暂无数据</div>
           <div v-for="item in filteredHumanTasks" :key="item.id" class="pipeline-card">
             <div class="card-top">
@@ -192,6 +209,8 @@
               <el-button v-else link type="primary" size="small" @click="openHumanDetail(item)">详情</el-button>
             </div>
           </div>
+          <div v-if="humanList.loadingMore" class="load-more-tip">加载中...</div>
+          <div v-else-if="!humanList.hasMore && filteredHumanTasks.length" class="load-more-tip">没有更多数据</div>
         </div>
       </div>
     </div>
@@ -401,7 +420,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { FullScreen, Download, Upload } from '@element-plus/icons-vue'
 import { getRuleValidationList, getRuleValidationDetail, validateRule, batchValidateRules, exportTripleXlsx, importTripleXlsx } from '@/api/ruleValidation'
@@ -410,6 +429,7 @@ import { getPendingList, getReviewData, submitReview } from '@/api/review'
 import { getModelOptions } from '@/api/model'
 import { getPromptOptions } from '@/api/prompt'
 import { exportThinking, updateAndValidate } from '@/api/triple'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import ReadonlyTable from '@/components/module-b/ReadonlyTable.vue'
 import EditableSheetTable from '@/components/module-c/EditableSheetTable.vue'
 import JsonPreview from '@/components/common/JsonPreview.vue'
@@ -462,8 +482,7 @@ const humanFilter = ref('all')
 const detailTableHeight = computed(() => ruleDetailFullscreen.value ? window.innerHeight - 280 : 450)
 
 // ---- 列1：规则审核 ----
-const ruleTasks = ref([])
-const ruleLoading = ref(false)
+const ruleList = reactive(useInfiniteList(getRuleValidationList, 15))
 const selectedRuleIds = ref([])
 const batchValidating = ref(false)
 
@@ -486,17 +505,24 @@ const exportingXlsx = ref(false)
 const importingXlsx = ref(false)
 
 const filteredRuleTasks = computed(() => {
-  if (ruleFilter.value === 'all') return ruleTasks.value
-  return ruleTasks.value.filter(t => t.status === ruleFilter.value)
+  if (ruleFilter.value === 'all') return ruleList.items
+  return ruleList.items.filter(t => t.status === ruleFilter.value)
 })
 
-async function loadRuleTasks(silent = false) {
-  if (!silent) ruleLoading.value = true
-  try {
-    const res = await getRuleValidationList({ page: 1, per_page: 50 })
-    ruleTasks.value = res.data.items || []
-  } catch {} finally {
-    if (!silent) ruleLoading.value = false
+const ruleSelectableTasks = computed(() => filteredRuleTasks.value.filter(t => t.status !== 'passed'))
+const ruleSelectAllChecked = computed(() => ruleSelectableTasks.value.length > 0 && ruleSelectableTasks.value.every(t => selectedRuleIds.value.includes(t.id)))
+const ruleSelectAllIndeterminate = computed(() => {
+  const selected = ruleSelectableTasks.value.filter(t => selectedRuleIds.value.includes(t.id))
+  return selected.length > 0 && selected.length < ruleSelectableTasks.value.length
+})
+
+function toggleRuleSelectAll(checked) {
+  const ids = ruleSelectableTasks.value.map(t => t.id)
+  if (checked) {
+    const merged = new Set([...selectedRuleIds.value, ...ids])
+    selectedRuleIds.value = [...merged]
+  } else {
+    selectedRuleIds.value = selectedRuleIds.value.filter(id => !ids.includes(id))
   }
 }
 
@@ -510,7 +536,7 @@ async function handleValidate(item) {
   try {
     await validateRule(item.id)
     ElMessage.success('验证已触发')
-    loadRuleTasks()
+    ruleList.load()
   } catch {}
 }
 
@@ -520,7 +546,7 @@ async function handleBatchValidate() {
     const res = await batchValidateRules(selectedRuleIds.value)
     ElMessage.success(res.message || '批量验证已触发')
     selectedRuleIds.value = []
-    loadRuleTasks()
+    ruleList.load()
   } catch {} finally {
     batchValidating.value = false
   }
@@ -614,7 +640,7 @@ async function handleSaveAndRevalidate() {
     })
     ElMessage.success('已保存并触发重新验证')
     ruleDetailVisible.value = false
-    loadRuleTasks()
+    ruleList.load()
   } catch {} finally {
     saveAndValidating.value = false
   }
@@ -683,8 +709,7 @@ async function handleImportXlsx(file) {
 }
 
 // ---- 列2：AI审核 ----
-const aiTasks = ref([])
-const aiLoading = ref(false)
+const aiList = reactive(useInfiniteList(getAiReviewList, 15))
 const aiModel = ref('')
 const aiPromptId = ref(null)
 const modelOptions = ref([])
@@ -695,19 +720,26 @@ const selectedAiIds = ref([])
 const batchAiReviewing = ref(false)
 
 const filteredAiTasks = computed(() => {
-  if (aiFilter.value === 'all') return aiTasks.value
-  if (aiFilter.value === 'pending_review') return aiTasks.value.filter(t => t.status === 'pending' || t.status === 'failed')
-  if (aiFilter.value === 'reviewing') return aiTasks.value.filter(t => t.status === 'reviewing')
-  return aiTasks.value.filter(t => t.status === aiFilter.value)
+  if (aiFilter.value === 'all') return aiList.items
+  if (aiFilter.value === 'pending_review') return aiList.items.filter(t => t.status === 'pending' || t.status === 'failed')
+  if (aiFilter.value === 'reviewing') return aiList.items.filter(t => t.status === 'reviewing')
+  return aiList.items.filter(t => t.status === aiFilter.value)
 })
 
-async function loadAiTasks(silent = false) {
-  if (!silent) aiLoading.value = true
-  try {
-    const res = await getAiReviewList({ page: 1, per_page: 50 })
-    aiTasks.value = res.data.items || []
-  } catch {} finally {
-    if (!silent) aiLoading.value = false
+const aiSelectableTasks = computed(() => filteredAiTasks.value.filter(t => t.status === 'pending' || t.status === 'failed'))
+const aiSelectAllChecked = computed(() => aiSelectableTasks.value.length > 0 && aiSelectableTasks.value.every(t => selectedAiIds.value.includes(t.id)))
+const aiSelectAllIndeterminate = computed(() => {
+  const selected = aiSelectableTasks.value.filter(t => selectedAiIds.value.includes(t.id))
+  return selected.length > 0 && selected.length < aiSelectableTasks.value.length
+})
+
+function toggleAiSelectAll(checked) {
+  const ids = aiSelectableTasks.value.map(t => t.id)
+  if (checked) {
+    const merged = new Set([...selectedAiIds.value, ...ids])
+    selectedAiIds.value = [...merged]
+  } else {
+    selectedAiIds.value = selectedAiIds.value.filter(id => !ids.includes(id))
   }
 }
 
@@ -748,7 +780,7 @@ function toggleAiSelect(item) {
 }
 
 async function handleBatchAiReview() {
-  const items = aiTasks.value.filter(t => selectedAiIds.value.includes(t.id))
+  const items = aiList.items.filter(t => selectedAiIds.value.includes(t.id))
   if (!items.length) return
   batchAiReviewing.value = true
   let successCount = 0
@@ -779,8 +811,7 @@ function getScoreColor(score) {
 }
 
 // ---- 列3：人工审核 ----
-const humanTasks = ref([])
-const humanLoading = ref(false)
+const humanList = reactive(useInfiniteList(getPendingList, 15))
 const humanDetailVisible = ref(false)
 const humanDetailFullscreen = ref(false)
 const humanDetailTaskId = ref(null)
@@ -790,9 +821,9 @@ const reviewerVisible = ref(false)
 const pendingReviewStatus = ref(null)
 
 const filteredHumanTasks = computed(() => {
-  if (humanFilter.value === 'all') return humanTasks.value
-  if (humanFilter.value === 'pending_review') return humanTasks.value.filter(t => !t.review_status)
-  return humanTasks.value.filter(t => t.review_status === humanFilter.value)
+  if (humanFilter.value === 'all') return humanList.items
+  if (humanFilter.value === 'pending_review') return humanList.items.filter(t => !t.review_status)
+  return humanList.items.filter(t => t.review_status === humanFilter.value)
 })
 
 const humanAiSuggestions = computed(() => humanDetailData.value?.ai_review?.suggestions || [])
@@ -811,16 +842,6 @@ function getDimColor(score) {
   if (score >= 80) return '#67C23A'
   if (score >= 60) return '#E6A23C'
   return '#F56C6C'
-}
-
-async function loadHumanTasks(silent = false) {
-  if (!silent) humanLoading.value = true
-  try {
-    const res = await getPendingList()
-    humanTasks.value = res.data || []
-  } catch {} finally {
-    if (!silent) humanLoading.value = false
-  }
 }
 
 async function openHumanDetail(item) {
@@ -854,7 +875,7 @@ async function onReviewerConfirm(reviewer) {
     })
     ElMessage.success('审核提交成功')
     humanDetailVisible.value = false
-    loadHumanTasks()
+    humanList.load()
   } catch {}
 }
 
@@ -870,16 +891,16 @@ function formatDT(isoStr) {
 let timer = null
 function startAutoRefresh() {
   timer = setInterval(() => {
-    loadRuleTasks(true)
-    loadAiTasks(true)
-    loadHumanTasks(true)
-  }, 10000)
+    ruleList.load(true)
+    aiList.load(true)
+    humanList.load(true)
+  }, 30000)
 }
 
 onMounted(async () => {
-  loadRuleTasks()
-  loadAiTasks()
-  loadHumanTasks()
+  ruleList.load()
+  aiList.load()
+  humanList.load()
   try {
     const mr = await getModelOptions()
     modelOptions.value = mr.data || []
@@ -1004,6 +1025,8 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .filter-tag:hover { color: #409eff; background: #ecf5ff; }
 .filter-tag.active { color: #fff; background: #409eff; }
 
+.select-all-check { margin-left: auto; }
+
 .col-body {
   flex: 1;
   overflow-y: auto;
@@ -1015,6 +1038,13 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
   color: #909399;
   padding: 40px 0;
   font-size: 13px;
+}
+
+.load-more-tip {
+  text-align: center;
+  color: #c0c4cc;
+  padding: 12px 0;
+  font-size: 12px;
 }
 
 /* 卡片 */
