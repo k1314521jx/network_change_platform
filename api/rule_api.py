@@ -1,7 +1,7 @@
 import os
 import uuid
 from datetime import datetime
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_file
 from werkzeug.utils import secure_filename
 from models import db, RuleTask
 
@@ -28,7 +28,7 @@ def upload_excel():
     os.makedirs(upload_folder, exist_ok=True)
     file.save(filepath)
 
-    task = RuleTask(filename=original_filename, status="pending")
+    task = RuleTask(filename=original_filename, filepath=filepath, status="pending")
     db.session.add(task)
     db.session.commit()
 
@@ -107,7 +107,7 @@ def retry_task(task_id):
     db.session.commit()
 
     from tasks.rule_tasks import process_excel
-    process_excel.delay(task.id, "")
+    process_excel.delay(task.id, task.filepath or "", task.filename)
 
     return jsonify({"code": 0, "message": "重试已触发"})
 
@@ -123,6 +123,17 @@ def delete_task(task_id):
     task.is_deleted = True
     db.session.commit()
     return jsonify({"code": 0, "message": "删除成功"})
+
+
+@rule_bp.route("/api/rule/tasks/<int:task_id>/download", methods=["GET"])
+def download_task(task_id):
+    """下载规则任务对应的原始文件"""
+    task = db.session.get(RuleTask, task_id)
+    if not task or task.is_deleted:
+        return jsonify({"code": -1, "message": "任务不存在"}), 404
+    if not task.filepath or not os.path.exists(task.filepath):
+        return jsonify({"code": -1, "message": "原始文件不存在"}), 404
+    return send_file(task.filepath, as_attachment=True, download_name=task.filename)
 
 
 # 为 RuleTask 添加 to_dict 方法

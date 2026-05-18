@@ -71,6 +71,11 @@
                 link type="success" size="small"
                 @click="handleValidate(item)"
               >验证</el-button>
+              <el-button
+                v-if="item.has_first_validation"
+                link type="warning" size="small"
+                @click="openFirstValidation(item)"
+              >原始验证</el-button>
             </div>
           </div>
         </div>
@@ -91,6 +96,9 @@
             <el-select v-model="aiPromptId" placeholder="提示词" clearable size="small" style="width: 120px;">
               <el-option v-for="p in promptOptions" :key="p.id" :label="p.name" :value="p.id" />
             </el-select>
+            <el-button type="primary" size="small" :disabled="!selectedAiIds.length" :loading="batchAiReviewing" @click="handleBatchAiReview">
+              批量审核({{ selectedAiIds.length }})
+            </el-button>
           </div>
         </div>
         <div class="col-filter">
@@ -102,8 +110,21 @@
         </div>
         <div class="col-body" v-loading="aiLoading">
           <div v-if="!filteredAiTasks.length" class="empty-tip">暂无数据</div>
-          <div v-for="item in filteredAiTasks" :key="item.id" class="pipeline-card">
+          <div
+            v-for="item in filteredAiTasks"
+            :key="item.id"
+            class="pipeline-card"
+            :class="{ selected: selectedAiIds.includes(item.id) }"
+            @click.self="toggleAiSelect(item)"
+          >
             <div class="card-top">
+              <el-checkbox
+                v-if="item.status === 'pending' || item.status === 'failed'"
+                :model-value="selectedAiIds.includes(item.id)"
+                @change="toggleAiSelect(item)"
+                @click.stop
+                size="small"
+              />
               <span class="card-id">#{{ item.id }}</span>
               <el-tag size="small" :type="aiStatusMap[item.status]?.type">
                 {{ aiStatusMap[item.status]?.label || item.status }}
@@ -225,16 +246,16 @@
         </div>
         <el-tabs v-if="ruleDetailData.triple_json" v-model="detailActiveTab" class="detail-tabs">
           <el-tab-pane label="Table1_Alignment" name="t1">
-            <EditableSheetTable v-if="isRuleUnqualified && !errorOnlyT1" v-model="editableRuleData.table1" :columns="t1Cols" :violations="ruleViolations" tableName="Table1_Alignment" :maxHeight="detailTableHeight" :showErrorToggle="true" v-model:errorOnly="errorOnlyT1" />
-            <ReadonlyTable v-else :data="errorOnlyT1 && isRuleUnqualified ? errorFilteredData.table1 : ruleTableData.table1" :columns="t1Cols" :violations="ruleViolations" tableName="Table1_Alignment" :maxHeight="detailTableHeight" />
+            <EditableSheetTable v-if="isRuleUnqualified" v-model="editableRuleData.table1" :columns="t1Cols" :violations="ruleViolations" tableName="Table1_Alignment" :maxHeight="detailTableHeight" :showErrorToggle="true" v-model:errorOnly="errorOnlyT1" :errorFilteredData="errorFilteredData.table1" />
+            <ReadonlyTable v-else :data="ruleTableData.table1" :columns="t1Cols" :violations="ruleViolations" tableName="Table1_Alignment" :maxHeight="detailTableHeight" />
           </el-tab-pane>
           <el-tab-pane label="Table2_Entities_Attributes" name="t2">
-            <EditableSheetTable v-if="isRuleUnqualified && !errorOnlyT2" v-model="editableRuleData.table2" :columns="t2Cols" :violations="ruleViolations" tableName="Table2_Entities_Attributes" :maxHeight="detailTableHeight" :showErrorToggle="true" v-model:errorOnly="errorOnlyT2" />
-            <ReadonlyTable v-else :data="errorOnlyT2 && isRuleUnqualified ? errorFilteredData.table2 : ruleTableData.table2" :columns="t2Cols" :violations="ruleViolations" tableName="Table2_Entities_Attributes" :maxHeight="detailTableHeight" />
+            <EditableSheetTable v-if="isRuleUnqualified" v-model="editableRuleData.table2" :columns="t2Cols" :violations="ruleViolations" tableName="Table2_Entities_Attributes" :maxHeight="detailTableHeight" :showErrorToggle="true" v-model:errorOnly="errorOnlyT2" :errorFilteredData="errorFilteredData.table2" />
+            <ReadonlyTable v-else :data="ruleTableData.table2" :columns="t2Cols" :violations="ruleViolations" tableName="Table2_Entities_Attributes" :maxHeight="detailTableHeight" />
           </el-tab-pane>
           <el-tab-pane label="Table3_Relations" name="t3">
-            <EditableSheetTable v-if="isRuleUnqualified && !errorOnlyT3" v-model="editableRuleData.table3" :columns="t3Cols" :violations="ruleViolations" tableName="Table3_Relations" :maxHeight="detailTableHeight" :showErrorToggle="true" v-model:errorOnly="errorOnlyT3" />
-            <ReadonlyTable v-else :data="errorOnlyT3 && isRuleUnqualified ? errorFilteredData.table3 : ruleTableData.table3" :columns="t3Cols" :violations="ruleViolations" tableName="Table3_Relations" :maxHeight="detailTableHeight" />
+            <EditableSheetTable v-if="isRuleUnqualified" v-model="editableRuleData.table3" :columns="t3Cols" :violations="ruleViolations" tableName="Table3_Relations" :maxHeight="detailTableHeight" :showErrorToggle="true" v-model:errorOnly="errorOnlyT3" :errorFilteredData="errorFilteredData.table3" />
+            <ReadonlyTable v-else :data="ruleTableData.table3" :columns="t3Cols" :violations="ruleViolations" tableName="Table3_Relations" :maxHeight="detailTableHeight" />
           </el-tab-pane>
           <el-tab-pane label="原始JSON" name="raw">
             <JsonPreview :data="ruleDetailData.triple_json" />
@@ -319,6 +340,54 @@
           :violations="humanAiViolations"
           @submit="handleHumanSubmit"
         />
+      </template>
+    </el-dialog>
+
+    <!-- 原始验证结果弹窗 -->
+    <el-dialog v-model="firstValidationVisible" width="80%" :fullscreen="firstValidationFullscreen" destroy-on-close>
+      <template #header>
+        <div class="dialog-header-bar">
+          <span>原始验证结果</span>
+          <el-button link @click="firstValidationFullscreen = !firstValidationFullscreen">
+            <el-icon><FullScreen /></el-icon>
+          </el-button>
+        </div>
+      </template>
+      <template v-if="firstValidationData">
+        <div class="detail-header">
+          <el-descriptions :column="3" border size="small">
+            <el-descriptions-item label="任务ID">{{ firstValidationData.id }}</el-descriptions-item>
+            <el-descriptions-item label="验证状态">
+              <el-tag size="small" type="danger">不合格（首次）</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="创建时间">{{ formatDT(firstValidationData.created_at) }}</el-descriptions-item>
+          </el-descriptions>
+        </div>
+        <template v-if="firstRuleViolations.length">
+          <div class="violation-summary" style="margin-top: 12px;">
+            <div class="violation-summary-title">首次验证不合格，共 {{ firstRuleViolations.length }} 项违规</div>
+            <div v-for="v in firstRuleViolations" :key="v.rule + v.level" class="violation-item">
+              <span class="violation-badge" :style="{ backgroundColor: v.color + '22', color: v.color, border: `1px solid ${v.color}` }">
+                规则{{ v.rule }} · {{ v.level }}
+              </span>
+              <span class="violation-msg">{{ v.message }}</span>
+            </div>
+          </div>
+        </template>
+        <el-tabs v-if="firstValidationData.triple_json" v-model="firstValidationActiveTab" class="detail-tabs">
+          <el-tab-pane label="Table1_Alignment" name="t1">
+            <ReadonlyTable :data="firstValidationTableData.table1" :columns="t1Cols" :violations="firstRuleViolations" tableName="Table1_Alignment" :maxHeight="firstValidationTableHeight" />
+          </el-tab-pane>
+          <el-tab-pane label="Table2_Entities_Attributes" name="t2">
+            <ReadonlyTable :data="firstValidationTableData.table2" :columns="t2Cols" :violations="firstRuleViolations" tableName="Table2_Entities_Attributes" :maxHeight="firstValidationTableHeight" />
+          </el-tab-pane>
+          <el-tab-pane label="Table3_Relations" name="t3">
+            <ReadonlyTable :data="firstValidationTableData.table3" :columns="t3Cols" :violations="firstRuleViolations" tableName="Table3_Relations" :maxHeight="firstValidationTableHeight" />
+          </el-tab-pane>
+          <el-tab-pane label="原始JSON" name="raw">
+            <JsonPreview :data="firstValidationData.triple_json" />
+          </el-tab-pane>
+        </el-tabs>
       </template>
     </el-dialog>
 
@@ -476,10 +545,36 @@ async function openRuleDetail(item) {
 }
 
 const ruleViolations = computed(() => showViolations.value ? (ruleDetailData.value?.validation_result?.violations || []) : [])
+
 const ruleTableData = computed(() => {
   const json = ruleDetailData.value?.triple_json || {}
   return { table1: json.Table1_Alignment || [], table2: json.Table2_Entities_Attributes || [], table3: json.Table3_Relations || [] }
 })
+
+// ---- 原始验证结果 ----
+const firstValidationVisible = ref(false)
+const firstValidationFullscreen = ref(false)
+const firstValidationData = ref(null)
+const firstValidationActiveTab = ref('t1')
+
+const firstRuleViolations = computed(() => firstValidationData.value?.first_validation_result?.violations || [])
+
+const firstValidationTableHeight = computed(() => firstValidationFullscreen.value ? window.innerHeight - 280 : 450)
+
+const firstValidationTableData = computed(() => {
+  const json = firstValidationData.value?.triple_json || {}
+  return { table1: json.Table1_Alignment || [], table2: json.Table2_Entities_Attributes || [], table3: json.Table3_Relations || [] }
+})
+
+async function openFirstValidation(item) {
+  try {
+    const res = await getRuleValidationDetail(item.id)
+    firstValidationData.value = res.data
+    firstValidationFullscreen.value = false
+    firstValidationActiveTab.value = 't1'
+    firstValidationVisible.value = true
+  } catch {}
+}
 
 function getErrorRowIndices(tableName) {
   const indices = new Set()
@@ -592,6 +687,8 @@ const modelOptions = ref([])
 const promptOptions = ref([])
 const aiDetailVisible = ref(false)
 const aiDetailData = ref(null)
+const selectedAiIds = ref([])
+const batchAiReviewing = ref(false)
 
 const filteredAiTasks = computed(() => {
   if (aiFilter.value === 'all') return aiTasks.value
@@ -634,10 +731,41 @@ async function handleAiCreate(item) {
     } else {
       await createAiReview({ triple_task_id: item.triple_task_id, model: aiModel.value, prompt_id: aiPromptId.value })
     }
-    // 立即更新本地状态为 reviewing，避免等轮询
     item.status = 'reviewing'
     ElMessage.success('AI审核已触发')
   } catch {}
+}
+
+function toggleAiSelect(item) {
+  if (item.status !== 'pending' && item.status !== 'failed') return
+  const idx = selectedAiIds.value.indexOf(item.id)
+  if (idx >= 0) selectedAiIds.value.splice(idx, 1)
+  else selectedAiIds.value.push(item.id)
+}
+
+async function handleBatchAiReview() {
+  const items = aiTasks.value.filter(t => selectedAiIds.value.includes(t.id))
+  if (!items.length) return
+  batchAiReviewing.value = true
+  let successCount = 0
+  let failCount = 0
+  for (const item of items) {
+    try {
+      if (item.status === 'pending') {
+        await startAiReview(item.id, { model: aiModel.value, prompt_id: aiPromptId.value })
+      } else if (item.status === 'failed') {
+        await retryAiReview(item.id)
+      }
+      item.status = 'reviewing'
+      successCount++
+    } catch {
+      failCount++
+    }
+  }
+  selectedAiIds.value = []
+  batchAiReviewing.value = false
+  if (successCount > 0) ElMessage.success(`已触发 ${successCount} 条AI审核${failCount > 0 ? `，${failCount} 条失败` : ''}`)
+  else if (failCount > 0) ElMessage.error(`${failCount} 条审核触发失败`)
 }
 
 function getScoreColor(score) {

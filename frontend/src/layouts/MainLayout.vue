@@ -14,21 +14,25 @@
         text-color="#a0a3bd"
         active-text-color="#409EFF"
       >
+        <el-menu-item index="/dashboard">
+          <el-icon><DataAnalysis /></el-icon>
+          <template #title>数据看板</template>
+        </el-menu-item>
         <el-menu-item index="/module-a">
           <el-icon><Upload /></el-icon>
           <template #title>方案规则化</template>
         </el-menu-item>
         <el-menu-item index="/module-b">
           <el-icon><Cpu /></el-icon>
-          <template #title>三元组转换</template>
+          <template #title>图谱生成</template>
         </el-menu-item>
         <el-menu-item index="/module-c">
           <el-icon><CircleCheck /></el-icon>
-          <template #title>三元组审核</template>
+          <template #title>图谱审核</template>
         </el-menu-item>
         <el-menu-item index="/module-d">
           <el-icon><Coin /></el-icon>
-          <template #title>三元组入库</template>
+          <template #title>图谱入库</template>
         </el-menu-item>
         <el-menu-item index="/module-f">
           <el-icon><Share /></el-icon>

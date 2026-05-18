@@ -27,6 +27,7 @@ def list_rule_validations():
             "rule_filename": task.rule_task.filename if task.rule_task else "",
             "model": task.model,
             "status": rv.status if rv else "pending",
+            "has_first_validation": bool(rv and rv.first_validation_result),
             "created_at": task.created_at.isoformat() if task.created_at else None,
         })
 
@@ -60,6 +61,7 @@ def get_rule_validation_detail(triple_task_id):
             "triple_json": task.triple_json,
             "validation_status": rv.status if rv else "pending",
             "validation_result": rv.validation_result if rv else None,
+            "first_validation_result": rv.first_validation_result if rv else None,
             "created_at": task.created_at.isoformat() if task.created_at else None,
         },
     })

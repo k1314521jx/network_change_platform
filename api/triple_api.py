@@ -38,6 +38,48 @@ def convert_to_triple():
     })
 
 
+@triple_bp.route("/api/triple/batch-convert", methods=["POST"])
+def batch_convert_to_triple():
+    """批量选择规则数据，触发LLM三元组转换"""
+    data = request.get_json()
+    if not data or "rule_task_ids" not in data:
+        return jsonify({"code": -1, "message": "请选择规则任务"}), 400
+
+    rule_task_ids = data["rule_task_ids"]
+    if not rule_task_ids or not isinstance(rule_task_ids, list):
+        return jsonify({"code": -1, "message": "请选择至少一条规则数据"}), 400
+
+    model = data.get("model", "deepseek")
+    prompt_id = data.get("prompt_id")
+    created = []
+    skipped = []
+
+    for rule_task_id in rule_task_ids:
+        rule_task = db.session.get(RuleTask, rule_task_id)
+        if not rule_task or rule_task.status != "success":
+            skipped.append({"id": rule_task_id, "reason": "规则任务不存在或未成功"})
+            continue
+
+        existing = TripleTask.query.filter_by(rule_task_id=rule_task_id, status="pending").first()
+        if existing:
+            skipped.append({"id": rule_task_id, "reason": "已有转换任务进行中"})
+            continue
+
+        triple_task = TripleTask(rule_task_id=rule_task_id, status="pending", model=model)
+        db.session.add(triple_task)
+        db.session.commit()
+
+        from tasks.triple_tasks import convert_to_triple as convert_task
+        convert_task.delay(triple_task.id, rule_task_id, model, prompt_id=prompt_id)
+        created.append(triple_task.id)
+
+    return jsonify({
+        "code": 0,
+        "message": f"已创建 {len(created)} 个转换任务" + (f"，跳过 {len(skipped)} 个" if skipped else ""),
+        "data": {"created": created, "skipped": skipped}
+    })
+
+
 @triple_bp.route("/api/triple/tasks", methods=["GET"])
 def list_triple_tasks():
     """获取三元组任务列表（支持分页和规则文件名模糊搜索）"""

@@ -1,13 +1,7 @@
 <template>
   <div class="module-a">
-    <el-row :gutter="20">
-      <el-col :span="8">
-        <UploadCard @uploaded="onUploaded" />
-      </el-col>
-      <el-col :span="16">
-        <TaskTable ref="taskTable" @view-detail="viewDetail" />
-      </el-col>
-    </el-row>
+    <UploadCard @uploaded="onUploaded" />
+    <TaskTable ref="taskTable" @view-detail="viewDetail" />
     <TaskDetailDialog v-model="detailVisible" :task="currentTask" />
   </div>
 </template>

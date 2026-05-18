@@ -68,3 +68,11 @@ export function getSuccessRuleTasks() {
     method: 'get',
   })
 }
+
+export function downloadRuleTask(id) {
+  return request({
+    url: `/api/rule/tasks/${id}/download`,
+    method: 'get',
+    responseType: 'blob',
+  })
+}

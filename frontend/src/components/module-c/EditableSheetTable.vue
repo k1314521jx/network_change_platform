@@ -99,15 +99,24 @@ const props = defineProps({
   maxHeight: { type: [Number, String], default: 450 },
   showErrorToggle: { type: Boolean, default: false },
   errorOnly: { type: Boolean, default: false },
+  errorFilteredData: { type: Array, default: null },
   showExportImport: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue', 'update:errorOnly', 'export', 'import'])
 
 const localData = ref([])
 
-watch(() => props.modelValue, (val) => {
-  localData.value = Array.isArray(val) ? val.map(r => ({ ...r })) : []
-}, { immediate: true, deep: true })
+watch(
+  () => [props.modelValue, props.errorOnly, props.errorFilteredData],
+  ([val, onlyErrors, filtered]) => {
+    if (onlyErrors && filtered) {
+      localData.value = filtered.map(r => ({ ...r }))
+    } else {
+      localData.value = Array.isArray(val) ? val.map(r => ({ ...r })) : []
+    }
+  },
+  { immediate: true, deep: true }
+)
 
 const objectColumns = new Set(['parameters', 'properties', 'relation_attributes'])
 
@@ -191,7 +200,20 @@ async function deleteRow(index) {
 }
 
 function emitUpdate() {
-  emit('update:modelValue', localData.value.map(r => ({ ...r })))
+  if (props.errorOnly && props.errorFilteredData) {
+    // 只看错误行模式：将修改同步回完整数据
+    const fullData = props.modelValue.map(r => ({ ...r }))
+    for (const edited of localData.value) {
+      const idx = fullData.findIndex(r => {
+        if (r.row_index != null && edited.row_index != null) return r.row_index === edited.row_index
+        return r.id != null && edited.id != null && r.id === edited.id
+      })
+      if (idx >= 0) Object.assign(fullData[idx], edited)
+    }
+    emit('update:modelValue', fullData)
+  } else {
+    emit('update:modelValue', localData.value.map(r => ({ ...r })))
+  }
 }
 
 function handleImport(file) {

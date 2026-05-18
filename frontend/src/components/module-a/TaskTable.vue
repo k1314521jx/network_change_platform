@@ -32,7 +32,11 @@
       empty-text="暂无任务数据"
     >
       <el-table-column prop="id" label="ID" width="80" align="center" />
-      <el-table-column prop="filename" label="文件名" min-width="180" show-overflow-tooltip />
+      <el-table-column prop="filename" label="文件名" min-width="180" show-overflow-tooltip>
+        <template #default="{ row }">
+          <el-link type="primary" :underline="false" @click="handleDownload(row)">{{ row.filename }}</el-link>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" width="110" align="center">
         <template #default="{ row }">
           <el-tag :type="getStatusTag(row.status).type" size="small" effect="light">
@@ -90,7 +94,7 @@ import { Search } from '@element-plus/icons-vue'
 import { useStatusTag } from '@/composables/useStatusTag'
 import { usePagination } from '@/composables/usePagination'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
-import { getRuleTasks, retryRuleTask, deleteRuleTask } from '@/api/rule'
+import { getRuleTasks, retryRuleTask, deleteRuleTask, downloadRuleTask } from '@/api/rule'
 
 const emit = defineEmits(['view-detail'])
 
@@ -149,6 +153,21 @@ async function handleDelete(id) {
   }
 }
 
+async function handleDownload(row) {
+  try {
+    const res = await downloadRuleTask(row.id)
+    const blob = new Blob([res.data])
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = row.filename
+    a.click()
+    window.URL.revokeObjectURL(url)
+  } catch {
+    // 后端已返回 "原始文件不存在" 提示，无需重复弹出
+  }
+}
+
 function refresh() {
   load()
 }
@@ -162,7 +181,7 @@ defineExpose({ refresh })
 
 <style scoped>
 .task-table-card {
-  min-height: 400px;
+  /* no fixed min-height in vertical layout */
 }
 .card-header {
   display: flex;

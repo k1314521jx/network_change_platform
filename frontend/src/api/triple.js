@@ -72,3 +72,16 @@ export function updateAndValidate(taskId, data) {
     data,
   })
 }
+
+/**
+ * 批量转换规则任务为三元组
+ * @param {{ rule_task_ids: number[], model?: string, prompt_id?: number }} data
+ * @returns {Promise}
+ */
+export function batchConvertToTriple(data) {
+  return request({
+    url: '/api/triple/batch-convert',
+    method: 'post',
+    data,
+  })
+}

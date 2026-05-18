@@ -8,5 +8,6 @@ class RuleValidation(db.Model):
     triple_task_id = db.Column(db.Integer, db.ForeignKey("triple_task.id"), unique=True, nullable=False, index=True)
     status = db.Column(db.Enum("pending", "validating", "passed", "unqualified"), default="pending", index=True)
     validation_result = db.Column(db.JSON)
+    first_validation_result = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=now_cn)
     updated_at = db.Column(db.DateTime, default=now_cn, onupdate=now_cn)

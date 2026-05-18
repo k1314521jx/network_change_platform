@@ -41,6 +41,9 @@ def validate_triple_task(self, triple_task_id: int):
                     db.session.add(ai_review)
             else:
                 rv.status = "unqualified"
+                # 仅保留第一次验证不合格的结果
+                if rv.first_validation_result is None:
+                    rv.first_validation_result = validation
             db.session.commit()
             return {"status": rv.status, "triple_task_id": triple_task_id}
         except Exception as e:

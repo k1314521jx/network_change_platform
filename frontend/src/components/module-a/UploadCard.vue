@@ -3,28 +3,65 @@
     <template #header>
       <div class="card-header">
         <el-icon :size="22" color="#409eff"><UploadFilled /></el-icon>
-        <span class="card-title">规则文件上传</span>
+        <span class="card-title">历史变更文件上传</span>
       </div>
     </template>
 
-    <el-upload
-      ref="uploadRef"
-      class="upload-area"
-      drag
-      :auto-upload="false"
-      accept=".xlsx,.xls"
-      :limit="1"
-      :on-change="onFileChange"
-      :on-exceed="onExceed"
-      :on-remove="onRemove"
+    <div class="upload-toolbar">
+      <el-upload
+        ref="uploadRef"
+        :auto-upload="false"
+        accept=".xlsx,.xls"
+        :multiple="true"
+        :limit="30"
+        :on-change="onFileChange"
+        :on-exceed="onExceed"
+        :on-remove="onRemove"
+        :file-list="fileList"
+        class="upload-inline"
+      >
+        <el-button type="primary" :icon="FolderOpened">选择文件</el-button>
+      </el-upload>
+      <span class="upload-tip">支持 .xlsx / .xls 格式，最多 10 个文件</span>
+    </div>
+
+    <el-table
+      v-if="fileList.length > 0"
+      :data="fileList"
+      border
+      size="small"
+      class="file-table"
+      max-height="240"
     >
-      <div class="upload-content">
-        <el-icon :size="48" color="#c0c4cc"><UploadFilled /></el-icon>
-        <div class="upload-text">将 Excel 文件拖到此处</div>
-        <div class="upload-hint">或 <em>点击上传</em></div>
-        <div class="upload-tip">仅支持 .xlsx / .xls 格式</div>
-      </div>
-    </el-upload>
+      <el-table-column type="index" label="#" width="50" align="center" />
+      <el-table-column prop="name" label="文件名" min-width="200" show-overflow-tooltip />
+      <el-table-column label="大小" width="100" align="center">
+        <template #default="{ row }">
+          {{ formatSize(row.size) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="状态" width="100" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="row._status === 'success'" type="success" size="small">成功</el-tag>
+          <el-tag v-else-if="row._status === 'failed'" type="danger" size="small">失败</el-tag>
+          <el-tag v-else-if="row._status === 'uploading'" type="warning" size="small">上传中</el-tag>
+          <el-tag v-else type="info" size="small">待上传</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="80" align="center">
+        <template #default="{ $index }">
+          <el-button
+            type="danger"
+            link
+            size="small"
+            :disabled="uploading"
+            @click="removeFile($index)"
+          >
+            移除
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
 
     <el-progress
       v-if="uploading"
@@ -37,29 +74,35 @@
     <el-button
       type="primary"
       :loading="uploading"
-      :disabled="!selectedFile"
+      :disabled="fileList.length === 0"
       class="upload-btn"
       @click="submitUpload"
     >
-      {{ uploading ? '上传中...' : '开始上传' }}
+      {{ uploading ? uploadBtnText : '开始上传' }}
     </el-button>
   </el-card>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { UploadFilled, FolderOpened } from '@element-plus/icons-vue'
 import { uploadExcel } from '@/api/rule'
 
 const emit = defineEmits(['uploaded'])
 
 const uploadRef = ref(null)
-const selectedFile = ref(null)
+const fileList = ref([])
 const uploading = ref(false)
 const uploadProgress = ref(0)
+const uploadedCount = ref(0)
 
-function onFileChange(uploadFile) {
+const uploadBtnText = computed(() => {
+  if (!uploading.value) return '开始上传'
+  return `上传中 (${uploadedCount.value}/${fileList.value.length})`
+})
+
+function onFileChange(uploadFile, uploadFiles) {
   const raw = uploadFile.raw
   const validTypes = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -67,20 +110,34 @@ function onFileChange(uploadFile) {
   ]
   const isExcel = validTypes.includes(raw.type) || raw.name.endsWith('.xlsx') || raw.name.endsWith('.xls')
   if (!isExcel) {
-    ElMessage.error('仅支持 Excel 文件（.xlsx / .xls）')
-    uploadRef.value?.clearFiles()
-    selectedFile.value = null
+    ElMessage.error(`文件 "${uploadFile.name}" 不是 Excel 格式，已忽略`)
+    uploadRef.value?.handleRemove(uploadFile)
     return
   }
-  selectedFile.value = raw
+  uploadFile._status = 'pending'
+  fileList.value = uploadFiles.map(f => ({ ...f, _status: f._status || 'pending' }))
 }
 
 function onExceed() {
-  ElMessage.warning('一次只能上传一个文件，请先移除已有文件')
+  ElMessage.warning('最多同时上传 10 个文件')
 }
 
-function onRemove() {
-  selectedFile.value = null
+function onRemove(uploadFile, uploadFiles) {
+  fileList.value = uploadFiles.map(f => ({ ...f, _status: f._status || 'pending' }))
+}
+
+function removeFile(index) {
+  fileList.value.splice(index, 1)
+  if (uploadRef.value) {
+    uploadRef.value.uploadFiles.splice(index, 1)
+  }
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '-'
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
 function progressFormat(percentage) {
@@ -88,47 +145,55 @@ function progressFormat(percentage) {
 }
 
 async function submitUpload() {
-  if (!selectedFile.value) return
+  if (fileList.value.length === 0) return
 
   uploading.value = true
   uploadProgress.value = 0
+  uploadedCount.value = 0
 
-  const formData = new FormData()
-  formData.append('file', selectedFile.value)
+  const total = fileList.value.length
+  let successCount = 0
+  let failCount = 0
 
-  try {
-    // 模拟上传进度
-    const progressTimer = setInterval(() => {
-      if (uploadProgress.value < 90) {
-        uploadProgress.value += 10
-      }
-    }, 200)
+  for (let i = 0; i < total; i++) {
+    const file = fileList.value[i]
+    file._status = 'uploading'
 
-    await uploadExcel(formData)
+    const formData = new FormData()
+    formData.append('file', file.raw)
 
-    clearInterval(progressTimer)
-    uploadProgress.value = 100
+    try {
+      await uploadExcel(formData)
+      file._status = 'success'
+      successCount++
+    } catch {
+      file._status = 'failed'
+      failCount++
+    }
 
-    ElMessage.success('文件上传成功')
+    uploadedCount.value = i + 1
+    uploadProgress.value = Math.round(((i + 1) / total) * 100)
+  }
+
+  if (successCount > 0) {
+    ElMessage.success(`${successCount} 个文件上传成功${failCount > 0 ? `，${failCount} 个失败` : ''}`)
     emit('uploaded')
+  } else {
+    ElMessage.error('所有文件上传失败')
+  }
 
-    // 重置状态
-    setTimeout(() => {
-      uploading.value = false
-      uploadProgress.value = 0
-      selectedFile.value = null
-      uploadRef.value?.clearFiles()
-    }, 800)
-  } catch (e) {
+  setTimeout(() => {
     uploading.value = false
     uploadProgress.value = 0
-  }
+    fileList.value = []
+    uploadRef.value?.clearFiles()
+  }, 800)
 }
 </script>
 
 <style scoped>
 .upload-card {
-  min-height: 400px;
+  margin-bottom: 16px;
 }
 .card-header {
   display: flex;
@@ -140,42 +205,26 @@ async function submitUpload() {
   font-weight: 600;
   color: #303133;
 }
-.upload-area {
-  width: 100%;
-}
-.upload-area :deep(.el-upload-dragger) {
-  width: 100%;
-  padding: 30px 0;
-}
-.upload-content {
+.upload-toolbar {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 12px;
 }
-.upload-text {
-  font-size: 14px;
-  color: #606266;
-  margin-top: 8px;
-}
-.upload-hint {
-  font-size: 14px;
-  color: #606266;
-}
-.upload-hint em {
-  color: #409eff;
-  font-style: normal;
+.upload-inline :deep(.el-upload-list) {
+  display: none;
 }
 .upload-tip {
   font-size: 12px;
   color: #909399;
-  margin-top: 4px;
+}
+.file-table {
+  margin-top: 12px;
 }
 .upload-progress {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 .upload-btn {
-  width: 100%;
-  margin-top: 16px;
+  width: auto;
+  margin-top: 12px;
 }
 </style>

@@ -16,6 +16,7 @@ class RuleTask(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     filename = db.Column(db.String(255), nullable=False)
+    filepath = db.Column(db.String(512), nullable=True)
     status = db.Column(db.Enum("pending", "success", "failed"), default="pending", index=True)
     extracted_json = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=now_cn)
